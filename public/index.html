@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Marché Électricité</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
+<style>
+  :root{
+    color-scheme: dark;
+    --bg:#0a0f1a;
+    --panel:#111a2c;
+    --panel-2:#0d1524;
+    --panel-muted:#0e1420;
+    --line:#22304a;
+    --line-muted:#1a2436;
+    --grid:#1c2843;
+    --text:#eef1f7;
+    --text-dim:#8b96ad;
+    --text-faint:#5b6684;
+    --text-faint-2:#454f68;
+    --da:#4c8dff;
+    --fcr:#2dd4bf;
+    --res:#f5a623;
+    --res-muted:#c98a3a;
+    --hausse:#d95926;
+    --baisse:#199e70;
+    --pos:#34d399;
+    --neg:#f87171;
+  }
+  *{box-sizing:border-box}
+  html,body{background:var(--bg)}
+  body{
+    margin:0;color:var(--text);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    padding:28px 20px 48px;-webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:12px 24px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:22px}
+  h1{font-size:1.5rem;font-weight:600;letter-spacing:-0.01em;margin:0;text-wrap:balance}
+  .subhead{color:var(--text-dim);font-size:.85rem;margin-top:4px}
+  .clock{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:.85rem;color:var(--text-dim);text-align:right}
+  .clock strong{color:var(--text);font-weight:600}
+  .clock.stale strong{color:var(--neg)}
+
+  .error-banner{display:none;gap:10px;align-items:flex-start;background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--neg);border-radius:6px;padding:12px 14px;margin-bottom:28px;font-size:.82rem;line-height:1.5;color:var(--text-dim)}
+  .error-banner.visible{display:flex}
+  .error-banner b{color:var(--text);font-weight:600}
+
+  section{margin-bottom:26px}
+  .section-head{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none;position:relative;top:1px}
+  .dot.da{background:var(--da);box-shadow:0 0 10px color-mix(in srgb, var(--da) 70%, transparent)}
+  .dot.fcr{background:var(--fcr);box-shadow:0 0 10px color-mix(in srgb, var(--fcr) 70%, transparent)}
+  .dot.res{background:var(--res);box-shadow:0 0 10px color-mix(in srgb, var(--res) 70%, transparent)}
+  .dot.res-muted{background:var(--res-muted)}
+  .section-title{font-size:.78rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--text-dim)}
+  .section-title em{font-style:normal;color:var(--text)}
+  .section-tag{font-size:.66rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--res);background:color-mix(in srgb, var(--res) 15%, transparent);padding:2px 8px;border-radius:999px}
+  .section-tag.muted{color:var(--text-faint);background:transparent;border:1px solid var(--line-muted)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px 14px}
+  .card.accent-da{border-top:2px solid var(--da)}
+  .card.accent-fcr{border-top:2px solid var(--fcr)}
+  .card.accent-res{border-top:2px solid var(--res)}
+
+  .chart-wrap{position:relative}
+  .chart-wrap svg{display:block;width:100%;height:auto;overflow:visible}
+  .chart-note{font-size:.7rem;color:var(--text-faint);margin-top:2px}
+  .chart-note.da-note{color:color-mix(in srgb, var(--da) 75%, var(--text-faint))}
+  .chart-note.fcr-note{color:color-mix(in srgb, var(--fcr) 75%, var(--text-faint))}
+
+  .tick-label{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;fill:var(--text-faint)}
+  .grid-line{stroke:var(--grid);stroke-width:1}
+  .axis-line{stroke:var(--line-muted);stroke-width:1}
+
+  .legend{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:.75rem;color:var(--text-dim)}
+  .legend-swatch{display:inline-block;width:14px;height:3px;border-radius:2px}
+
+  .crosshair-tip{
+    position:absolute;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:6px;padding:6px 9px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:.72rem;
+    color:var(--text);white-space:nowrap;opacity:0;transition:opacity .1s;transform:translate(-50%,-115%);z-index:5;
+  }
+  .crosshair-tip .k{color:var(--text-faint)}
+
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .stat-row.single{grid-template-columns:1fr}
+  .stat-row.three{grid-template-columns:1.1fr 1fr 1fr}
+  @media (max-width:820px){ .stat-row.three{grid-template-columns:1fr} }
+  .stat-pill{background:var(--panel-2);border:1px solid var(--line-muted);border-radius:8px;padding:11px 14px;display:flex;flex-direction:column;gap:5px}
+  .stat-pill .stat-label{font-size:.72rem;color:var(--text-faint);display:flex;align-items:center;gap:6px}
+  .stat-pill .stat-swatch{display:inline-block;width:8px;height:8px;border-radius:50%}
+  .stat-pill .stat-value{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;font-size:1.4rem;font-variant-numeric:tabular-nums}
+  .stat-pill .stat-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+  .pill{display:inline-flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:.75rem;font-weight:600;padding:3px 8px;border-radius:999px;line-height:1.5;white-space:nowrap}
+  .pill.up{color:var(--pos);background:color-mix(in srgb, var(--pos) 16%, transparent)}
+  .pill.down{color:var(--neg);background:color-mix(in srgb, var(--neg) 16%, transparent)}
+  .pill-cap{font-size:.68rem;color:var(--text-faint);font-weight:500;margin-left:2px}
+
+  .res-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .res-col-label{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;padding-left:2px}
+
+  .mini-tile{background:var(--panel-muted);border:1px solid var(--line-muted);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .mini-stats{display:flex;gap:18px;flex-wrap:wrap}
+  .mini-stat{display:flex;flex-direction:column;gap:2px}
+  .mini-stat .mini-label{font-size:.65rem;color:var(--text-faint-2);text-transform:uppercase;letter-spacing:.05em}
+  .mini-stat .mini-value{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:1.05rem;font-weight:600;color:var(--text-dim);font-variant-numeric:tabular-nums}
+  .meta-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .timestamp{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:.72rem;color:var(--text-faint)}
+  .delay-pill{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;color:var(--res-muted);background:color-mix(in srgb, var(--res-muted) 14%, transparent);border-radius:999px;padding:3px 9px;font-weight:500}
+
+  footer{margin-top:8px;padding-top:16px;border-top:1px solid var(--line);font-size:.72rem;color:var(--text-faint);line-height:1.6}
+  footer code{font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--text-dim)}
+
+  @media (max-width:820px){
+    .stat-row{grid-template-columns:1fr}
+    .res-cols{grid-template-columns:1fr;gap:14px}
+    header{flex-direction:column}
+    .clock{text-align:left}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Dashboard marché électricité</h1>
+      <div class="subhead">Day-ahead, FCR &amp; réserve aFRR — France</div>
+    </div>
+    <div class="clock" id="clock">Chargement…</div>
+  </header>
+
+  <div class="error-banner" id="error-banner">
+    <span>&#9888;</span>
+    <div id="error-text"></div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <span class="dot da"></span>
+      <span class="section-title"><em>Day-ahead</em> — EPEX, publié la veille</span>
+    </div>
+    <div class="card accent-da">
+      <div class="chart-wrap" id="chart-da"></div>
+      <div class="chart-note da-note">Point plein = curseur sur le quart d'heure en cours — courbe déjà connue, pas une nouvelle mesure temps réel</div>
+
+      <div class="stat-row three">
+        <div class="stat-pill">
+          <span class="stat-label">Prix courant</span>
+          <div class="stat-meta"><span class="stat-value" id="da-courant">—</span></div>
+          <span class="timestamp" id="da-courant-ts"></span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">Prix moyen du jour</span>
+          <div class="stat-meta"><span class="stat-value" id="da-moyenne">—</span><span id="da-moyenne-pill"></span></div>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">TB2 — spread 2h horaire</span>
+          <div class="stat-meta"><span class="stat-value" id="da-tb2">—</span><span id="da-tb2-pill"></span></div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-pill">
+          <span class="stat-label">Bas du jour</span>
+          <div class="stat-meta"><span class="stat-value" id="da-bas">—</span><span id="da-bas-pill"></span></div>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">Peak du jour</span>
+          <div class="stat-meta"><span class="stat-value" id="da-peak">—</span><span id="da-peak-pill"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="dot fcr"></span>
+      <span class="section-title"><em>FCR</em> — capacité, allouée à l'avance</span>
+    </div>
+    <div class="card accent-fcr">
+      <div class="chart-wrap" id="chart-fcr"></div>
+      <div class="chart-note fcr-note">Allocation par créneaux de plusieurs heures — chaque palier reste constant jusqu'au prochain changement</div>
+      <div class="stat-row single">
+        <div class="stat-pill">
+          <span class="stat-label">Prix de capacité moyen du jour</span>
+          <div class="stat-meta"><span class="stat-value" id="fcr-moyenne">—</span><span id="fcr-moyenne-pill"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="dot res"></span>
+      <span class="section-title"><em>Réserve aFRR — capacité</em></span>
+      <span class="section-tag">métrique principale</span>
+    </div>
+    <div class="card accent-res">
+      <div class="chart-wrap" id="chart-afrr"></div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-swatch" style="background:var(--hausse)"></span>Hausse</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:var(--baisse)"></span>Baisse</span>
+      </div>
+      <div class="stat-row">
+        <div class="stat-pill">
+          <span class="stat-label"><span class="stat-swatch" style="background:var(--hausse)"></span>Hausse — moyenne du jour</span>
+          <div class="stat-meta"><span class="stat-value" id="afrr-up-moyenne">—</span><span id="afrr-up-moyenne-pill"></span></div>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label"><span class="stat-swatch" style="background:var(--baisse)"></span>Baisse — moyenne du jour</span>
+          <div class="stat-meta"><span class="stat-value" id="afrr-down-moyenne">—</span><span id="afrr-down-moyenne-pill"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="dot res-muted"></span>
+      <span class="section-title"><em>Réserve aFRR — activation</em></span>
+      <span class="section-tag muted">secondaire</span>
+    </div>
+    <div class="res-cols">
+      <div>
+        <div class="res-col-label">Hausse</div>
+        <div class="mini-tile">
+          <div class="mini-stats">
+            <div class="mini-stat"><span class="mini-label">Moyenne 24h glissantes</span><span class="mini-value" id="act-up-moyenne">—</span></div>
+            <div class="mini-stat"><span class="mini-label">Dernier prix publié</span><span class="mini-value" id="act-up-dernier">—</span></div>
+          </div>
+          <div class="meta-row">
+            <span class="timestamp" id="act-up-ts"></span>
+            <span class="delay-pill" id="act-up-delai"></span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="res-col-label">Baisse</div>
+        <div class="mini-tile">
+          <div class="mini-stats">
+            <div class="mini-stat"><span class="mini-label">Moyenne 24h glissantes</span><span class="mini-value" id="act-down-moyenne">—</span></div>
+            <div class="mini-stat"><span class="mini-label">Dernier prix publié</span><span class="mini-value" id="act-down-dernier">—</span></div>
+          </div>
+          <div class="meta-row">
+            <span class="timestamp" id="act-down-ts"></span>
+            <span class="delay-pill" id="act-down-delai"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Unité aFRR capacité : €/MW/15 min (guide RTE Balancing Capacity, §5.10.1.3 — "Prix marginal (en €/MW/15 min)"),
+    donc €/MW/ISP, pas €/MW/h. Capacité FCR/aFRR = allouée à l'avance (courbe déjà connue) → métrique principale de
+    la section réserve. Activation aFRR = seule série réellement publiée au fil de l'eau → affichée en secondaire,
+    moyenne glissante 24h plutôt que calendaire.<br>
+    Rafraîchi automatiquement toutes les 60s (page) — données mises à jour côté serveur toutes les 15 min.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const W = 640, H = 200, PAD_L = 40, PAD_R = 14, PAD_T = 14, PAD_B = 22;
+  const plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
+  const REFRESH_MS = 60000;
+
+  function xScale(hour){ return PAD_L + (hour/24) * plotW; }
+
+  function makeYScale(series){
+    const all = series.flat().filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+    if(all.length === 0) return { lo:0, hi:1, y: () => PAD_T + plotH/2 };
+    let lo = Math.min(...all), hi = Math.max(...all);
+    const span = hi - lo || 1;
+    lo -= span*0.12; hi += span*0.12;
+    return { lo, hi, y: v => PAD_T + plotH - ((v-lo)/(hi-lo))*plotH };
+  }
+
+  function stepValue(series, hour){
+    const i = Math.min(95, Math.floor(hour*4));
+    return series[i];
+  }
+
+  // Chemin en escalier ("step-after"), en sautant les creneaux manquants
+  // (null) sans relier par une fausse pente -- un trou reste un trou visible.
+  function stepPath(points){
+    let d = "", enCours = false, dernierY = null;
+    for(let i=0;i<points.length;i++){
+      const [x, y] = points[i];
+      if(y === null){ enCours = false; continue; }
+      if(!enCours){ d += ` M ${x.toFixed(1)} ${y.toFixed(1)}`; enCours = true; }
+      else { d += ` L ${x.toFixed(1)} ${dernierY.toFixed(1)} L ${x.toFixed(1)} ${y.toFixed(1)}`; }
+      dernierY = y;
+    }
+    return d.trim();
+  }
+
+  function svgEl(tag, attrs){
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for(const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function gridAndAxis(svg, yScale){
+    const ticks = 4;
+    for(let i=0;i<=ticks;i++){
+      const v = yScale.lo + (yScale.hi-yScale.lo)*i/ticks;
+      const y = yScale.y(v);
+      svg.appendChild(svgEl("line", {class:"grid-line", x1:PAD_L, x2:W-PAD_R, y1:y.toFixed(1), y2:y.toFixed(1)}));
+      const t = svgEl("text", {class:"tick-label", x:PAD_L-6, y:(y+3).toFixed(1), "text-anchor":"end"});
+      t.textContent = v.toFixed(0);
+      svg.appendChild(t);
+    }
+    [0,6,12,18,23].forEach(h=>{
+      const x = xScale(h);
+      const t = svgEl("text", {class:"tick-label", x:x.toFixed(1), y:H-6, "text-anchor":"middle"});
+      t.textContent = String(h).padStart(2,"0")+"h";
+      svg.appendChild(t);
+    });
+    svg.appendChild(svgEl("line", {class:"axis-line", x1:PAD_L, x2:W-PAD_R, y1:H-PAD_B, y2:H-PAD_B}));
+  }
+
+  function addNowMarker(svg, yScale, series, color, nowHour){
+    const val = stepValue(series, Math.min(nowHour, 23.9999));
+    if(val === null || val === undefined) return;
+    const x = xScale(nowHour), y = yScale.y(val);
+    svg.appendChild(svgEl("line", {x1:x.toFixed(1), x2:x.toFixed(1), y1:PAD_T, y2:H-PAD_B, stroke:"var(--text-faint)", "stroke-width":1, "stroke-dasharray":"3,3", opacity:0.5}));
+    svg.appendChild(svgEl("circle", {cx:x.toFixed(1), cy:y.toFixed(1), r:5, fill:color, stroke:"var(--bg)", "stroke-width":2}));
+  }
+
+  function addExtremeMarker(svg, yScale, hour, val, label, color){
+    const x = xScale(hour), y = yScale.y(val);
+    svg.appendChild(svgEl("circle", {cx:x.toFixed(1), cy:y.toFixed(1), r:3.5, fill:"var(--bg)", stroke:color, "stroke-width":2}));
+    const above = y > PAD_T + 16;
+    const t = svgEl("text", {class:"tick-label", x:x.toFixed(1), y:(above? y-10: y+16).toFixed(1), "text-anchor":"middle", fill:color, "font-weight":"600"});
+    t.textContent = label;
+    svg.appendChild(t);
+  }
+
+  function crosshairLayer(container, svg, series, colors, unit){
+    const tip = document.createElement("div");
+    tip.className = "crosshair-tip";
+    container.appendChild(tip);
+    const guide = svgEl("line", {x1:0,x2:0,y1:PAD_T,y2:H-PAD_B, stroke:"var(--text-faint)", "stroke-width":1, opacity:0});
+    svg.appendChild(guide);
+
+    svg.addEventListener("mousemove", (e)=>{
+      const rect = svg.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width * W;
+      let hour = ((px - PAD_L) / plotW) * 24;
+      hour = Math.max(0, Math.min(23.99, hour));
+      const qIdx = Math.min(95, Math.floor(hour*4)), hh = Math.floor(qIdx/4), mm = (qIdx%4)*15;
+      const x = xScale(qIdx*0.25);
+      guide.setAttribute("x1", x.toFixed(1)); guide.setAttribute("x2", x.toFixed(1)); guide.setAttribute("opacity", 0.6);
+      const lines = series.map((s,i)=>{
+        const v = s[qIdx];
+        return `<span class="k">${colors.labels[i]}:</span> ${v === null || v === undefined ? "—" : v.toFixed(1)} ${unit}`;
+      }).join("<br>");
+      const finHh = mm+15===60 ? hh+1 : hh, finMm = (mm+15)%60;
+      tip.innerHTML = `<div>${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}–${String(finHh).padStart(2,"0")}:${String(finMm).padStart(2,"0")}</div>${lines}`;
+      tip.style.opacity = 1;
+      tip.style.left = (px/W*100) + "%";
+      tip.style.top = "8px";
+    });
+    svg.addEventListener("mouseleave", ()=>{ guide.setAttribute("opacity",0); tip.style.opacity=0; });
+  }
+
+  function buildChart(containerId, series, colors, opts){
+    opts = opts || {};
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+    const svg = svgEl("svg", {viewBox:`0 0 ${W} ${H}`, role:"img", "aria-label": opts.ariaLabel || ""});
+    const yScale = makeYScale(series);
+
+    gridAndAxis(svg, yScale);
+
+    series.forEach((s, idx)=>{
+      const points = s.map((v,i)=>[xScale(i*0.25), v === null || v === undefined || Number.isNaN(v) ? null : yScale.y(v)]);
+      const pathD = stepPath(points);
+      if(pathD && opts.area && series.length===1){
+        const dernierPointValide = [...points].reverse().find(p => p[1] !== null);
+        const premierPointValide = points.find(p => p[1] !== null);
+        if(dernierPointValide && premierPointValide){
+          const areaD = pathD + ` L ${dernierPointValide[0].toFixed(1)} ${(H-PAD_B).toFixed(1)} L ${premierPointValide[0].toFixed(1)} ${(H-PAD_B).toFixed(1)} Z`;
+          svg.appendChild(svgEl("path", {d:areaD, fill:colors.stroke[idx], opacity:0.12, stroke:"none"}));
+        }
+      }
+      if(pathD) svg.appendChild(svgEl("path", {d:pathD, fill:"none", stroke:colors.stroke[idx], "stroke-width":2, "stroke-linecap":"round", "stroke-linejoin":"round"}));
+    });
+
+    if(opts.now) addNowMarker(svg, yScale, series[opts.nowSeries||0], colors.stroke[opts.nowSeries||0], opts.nowHour);
+    if(opts.extremes && opts.extremes.lowHour !== null){
+      addExtremeMarker(svg, yScale, opts.extremes.lowHour, opts.extremes.lowVal, "Bas", "var(--pos)");
+      addExtremeMarker(svg, yScale, opts.extremes.highHour, opts.extremes.highVal, "Peak", "var(--neg)");
+    }
+
+    container.appendChild(svg);
+    crosshairLayer(container, svg, series, colors, opts.unit);
+  }
+
+  // --- formatage ---
+  function fmt(v, decimals){
+    if(v === null || v === undefined || Number.isNaN(v)) return "—";
+    return v.toLocaleString("fr-FR", {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+  }
+  function fmtHeure(iso){
+    if(!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"});
+  }
+  function fmtCreneau(iso){
+    if(!iso) return "";
+    const d = new Date(iso);
+    const fin = new Date(d.getTime() + 15*60000);
+    return `créneau ${fmtHeure(iso)}–${fmtHeure(fin.toISOString())}`;
+  }
+  function pillHtml(ecartPct){
+    if(ecartPct === null || ecartPct === undefined || Number.isNaN(ecartPct)) return "";
+    const up = ecartPct >= 0;
+    const fleche = up ? "&#9650;" : "&#9660;";
+    const signe = up ? "+" : "−";
+    return `<span class="pill ${up?"up":"down"}">${fleche} ${signe}${fmt(Math.abs(ecartPct),1)}&#37;<span class="pill-cap">vs 30j</span></span>`;
+  }
+  function setText(id, texte){ const el = document.getElementById(id); if(el) el.textContent = texte; }
+  function setHtml(id, html){ const el = document.getElementById(id); if(el) el.innerHTML = html; }
+
+  // Convertit la liste eparse {ts, prix} du jour en tableau de 96 cases
+  // (index = quart d'heure depuis minuit local), trous = null.
+  function remplitJournee(points){
+    const cases = new Array(96).fill(null);
+    if(!points) return cases;
+    points.forEach(p=>{
+      const d = new Date(p.ts);
+      const idx = d.getHours()*4 + Math.floor(d.getMinutes()/15);
+      if(idx >= 0 && idx < 96) cases[idx] = p.prix;
+    });
+    return cases;
+  }
+
+  function extremesDepuisSerie(serie, valeurBas, valeurPeak){
+    if(valeurBas === null || valeurBas === undefined || valeurPeak === null || valeurPeak === undefined){
+      return {lowHour:null, lowVal:null, highHour:null, highVal:null};
+    }
+    let iBas = -1, iPeak = -1;
+    serie.forEach((v,i)=>{
+      if(v === null) return;
+      if(iBas === -1 && Math.abs(v - valeurBas) < 1e-6) iBas = i;
+      if(iPeak === -1 && Math.abs(v - valeurPeak) < 1e-6) iPeak = i;
+    });
+    if(iBas === -1 || iPeak === -1) return {lowHour:null, lowVal:null, highHour:null, highVal:null};
+    return {lowHour: iBas*0.25, lowVal: valeurBas, highHour: iPeak*0.25, highVal: valeurPeak};
+  }
+
+  function render(snap){
+    const maintenant = new Date();
+    const nowHour = maintenant.getHours() + maintenant.getMinutes()/60 + maintenant.getSeconds()/3600;
+
+    document.getElementById("clock").innerHTML =
+      `Dernière mise à jour <strong>${snap.fetched_at ? fmtHeure(snap.fetched_at) : "—"}</strong><br>Rafraîchi toutes les 60s`;
+
+    // --- Day-ahead ---
+    setText("da-courant", snap.da_prix_courant !== undefined ? `${fmt(snap.da_prix_courant,2)} €/MWh` : "—");
+    setText("da-courant-ts", fmtCreneau(snap.da_prix_courant_horodatage));
+    setText("da-moyenne", snap.da_moyenne_jour !== undefined ? `${fmt(snap.da_moyenne_jour,2)} €/MWh` : "—");
+    setHtml("da-moyenne-pill", pillHtml(snap.da_ecart_pct));
+    setText("da-tb2", snap.da_tb2 !== undefined ? `${fmt(snap.da_tb2,2)} €/MWh` : "—");
+    setHtml("da-tb2-pill", pillHtml(snap.da_tb2_ecart_pct));
+    setText("da-bas", snap.da_bas_jour !== undefined ? `${fmt(snap.da_bas_jour,2)} €/MWh` : "—");
+    setHtml("da-bas-pill", pillHtml(snap.da_bas_ecart_pct));
+    setText("da-peak", snap.da_peak_jour !== undefined ? `${fmt(snap.da_peak_jour,2)} €/MWh` : "—");
+    setHtml("da-peak-pill", pillHtml(snap.da_peak_ecart_pct));
+
+    // --- FCR ---
+    setText("fcr-moyenne", snap.fcr_moyenne_jour !== undefined ? `${fmt(snap.fcr_moyenne_jour,2)} €/MW` : "—");
+    setHtml("fcr-moyenne-pill", pillHtml(snap.fcr_ecart_pct));
+
+    // --- aFRR capacite ---
+    setText("afrr-up-moyenne", snap.afrr_up_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_up_capa_moyenne_jour,2)} €/MW/15min` : "—");
+    setHtml("afrr-up-moyenne-pill", pillHtml(snap.afrr_up_capa_ecart_pct));
+    setText("afrr-down-moyenne", snap.afrr_down_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_down_capa_moyenne_jour,2)} €/MW/15min` : "—");
+    setHtml("afrr-down-moyenne-pill", pillHtml(snap.afrr_down_capa_ecart_pct));
+
+    // --- aFRR activation ---
+    setText("act-up-moyenne", snap.afrr_up_activation_moyenne_24h !== undefined ? `${fmt(snap.afrr_up_activation_moyenne_24h,1)} €/MWh` : "—");
+    setText("act-up-dernier", snap.afrr_up_activation_dernier_prix !== undefined ? `${fmt(snap.afrr_up_activation_dernier_prix,1)} €/MWh` : "—");
+    setText("act-up-ts", fmtCreneau(snap.afrr_up_activation_dernier_horodatage));
+    setText("act-up-delai", snap.afrr_up_activation_delai_min !== undefined && snap.afrr_up_activation_delai_min !== null ? `⏳ délai ${Math.round(snap.afrr_up_activation_delai_min)} min` : "");
+    setText("act-down-moyenne", snap.afrr_down_activation_moyenne_24h !== undefined ? `${fmt(snap.afrr_down_activation_moyenne_24h,1)} €/MWh` : "—");
+    setText("act-down-dernier", snap.afrr_down_activation_dernier_prix !== undefined ? `${fmt(snap.afrr_down_activation_dernier_prix,1)} €/MWh` : "—");
+    setText("act-down-ts", fmtCreneau(snap.afrr_down_activation_dernier_horodatage));
+    setText("act-down-delai", snap.afrr_down_activation_delai_min !== undefined && snap.afrr_down_activation_delai_min !== null ? `⏳ délai ${Math.round(snap.afrr_down_activation_delai_min)} min` : "");
+
+    // --- graphes ---
+    const series = snap.series || {};
+    const da = remplitJournee(series.da);
+    const fcr = remplitJournee(series.fcr);
+    const afrrUp = remplitJournee(series.afrr_up_capa);
+    const afrrDown = remplitJournee(series.afrr_down_capa);
+
+    buildChart("chart-da", [da], {stroke:["var(--da)"], labels:["Day-ahead"]}, {
+      unit:"€/MWh", area:true, now:true, nowHour,
+      extremes: extremesDepuisSerie(da, snap.da_bas_jour, snap.da_peak_jour),
+      ariaLabel:"Profil de prix day-ahead sur la journée, pas 15 min natif",
+    });
+    buildChart("chart-fcr", [fcr], {stroke:["var(--fcr)"], labels:["FCR"]}, {
+      unit:"€/MW", now:true, nowHour,
+      ariaLabel:"Profil de prix de capacité FCR sur la journée",
+    });
+    buildChart("chart-afrr", [afrrUp, afrrDown], {stroke:["var(--hausse)","var(--baisse)"], labels:["Hausse","Baisse"]}, {
+      unit:"€/MW/15min", now:true, nowHour, nowSeries:0,
+      ariaLabel:"Profil de prix de capacité aFRR, hausse et baisse superposées",
+    });
+  }
+
+  function afficheErreur(message){
+    const banniere = document.getElementById("error-banner");
+    document.getElementById("error-text").innerHTML = `<b>Données indisponibles.</b> ${message}`;
+    banniere.classList.add("visible");
+  }
+  function masqueErreur(){
+    document.getElementById("error-banner").classList.remove("visible");
+  }
+
+  async function chargerEtRendre(){
+    try{
+      const reponse = await fetch("/api/kpis", {cache:"no-store"});
+      if(!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+      const snap = await reponse.json();
+      if(snap.erreur) throw new Error(snap.erreur);
+      if(!snap.fetched_at){
+        afficheErreur("Le pipeline serveur n'a pas encore écrit de premier snapshot (cron_15min jamais exécuté, ou KV vide).");
+        return;
+      }
+      masqueErreur();
+      render(snap);
+    }catch(erreur){
+      afficheErreur(`${erreur.message} — la page réessaiera dans 60s, affichage figé sur la dernière valeur connue en attendant.`);
+    }
+  }
+
+  chargerEtRendre();
+  setInterval(chargerEtRendre, REFRESH_MS);
+})();
+</script>
+</body>
+</html>

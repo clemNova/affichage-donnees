@@ -1,0 +1,39 @@
+name: Dashboard marche electricite - cron
+
+# Declencheur RECOMMANDE (fiable, gratuit, independant du palier Vercel) pour
+# dashboard_web/ : Vercel Cron Jobs existe aussi (cf. dashboard_web/vercel.json)
+# mais son intervalle minimum peut etre limite a 1x/jour sur le palier Hobby
+# (a verifier au moment du deploiement) -- GitHub Actions n'a pas cette
+# contrainte et fonctionne des le depot public ou avec Actions active sur un
+# depot prive. Redondant avec vercel.json n'est pas un probleme : les
+# ecritures cote serveur sont idempotentes (append/overwrite, pas de risque
+# de corruption si les deux declencheurs se chevauchent).
+#
+# Necessite deux secrets de depot (Settings > Secrets and variables > Actions) :
+#   SITE_URL     - URL du deploiement Vercel, ex. https://dashboard-marche.vercel.app
+#   CRON_SECRET  - meme valeur que la variable d'environnement CRON_SECRET cote Vercel
+#
+# GitHub desactive automatiquement les workflows planifies apres 60 jours sans
+# activite sur le depot -- un commit (meme sans rapport) les reactive.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+    - cron: "0,30 11,12,13,14 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  declencher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh 15 min (activation aFRR + calcul KPI)
+        if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron_15min"
+
+      - name: Fetch quotidien (day-ahead + FCR + capacite aFRR)
+        if: github.event.schedule == '0,30 11,12,13,14 * * *'
+        run: |
+          curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron_daily"

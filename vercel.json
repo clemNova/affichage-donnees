@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron_daily", "schedule": "0,30 12,13,14,15 * * *" },
+    { "path": "/api/cron_15min", "schedule": "*/15 * * * *" }
+  ]
+}
