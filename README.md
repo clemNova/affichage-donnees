@@ -11,7 +11,7 @@ local, aucune base de données à administrer.
 ## Architecture
 
 ```
-vercel.json          cron natif Vercel (cf. limite Hobby, section 3)
+vercel.json          config Vercel (vide -- pas de cron natif, cf. section 3)
 requirements.txt     deps Python (pandas, entsoe-py, requests)
 api/
     cron_daily.py     GET — fetch day-ahead + FCR + capacité aFRR (1x/jour)
@@ -69,20 +69,21 @@ autonome) — pas de fichier, pas de disque. Clés utilisées :
 3. **"Deployments" → dernier déploiement → "…" → "Redeploy"** pour que la
    variable KV tout juste liée soit prise en compte.
 
-## 3. Déclenchement des cron (recommandé : GitHub Actions, déjà dans ce dépôt)
+## 3. Déclenchement des cron (GitHub Actions — seul déclencheur)
 
 `.github/workflows/cron.yml` appelle `/api/cron_15min` toutes les 15 min et
-`/api/cron_daily` deux fois par heure entre 12h et 16h UTC (large marge
-autour de la publication EPEX ~12h Paris) — gratuit, fiable, indépendant du
-palier Vercel. Deux secrets à créer sur **ce dépôt GitHub**
+`/api/cron_daily` plusieurs fois entre 11h et 15h UTC (large marge autour de
+la publication EPEX ~12h Paris) — gratuit, fiable, indépendant du palier
+Vercel. Deux secrets à créer sur **ce dépôt GitHub**
 (Settings → Secrets and variables → Actions) :
 - `SITE_URL` = l'URL Vercel du point 1 (sans slash final)
 - `CRON_SECRET` = **exactement** la même valeur que côté Vercel (point 1.3)
 
-`vercel.json` déclare aussi les cron natifs Vercel en redondance — sans
-risque (écritures idempotentes), mais le palier Hobby limite historiquement
-la fréquence à 1x/jour (à vérifier au déploiement). GitHub Actions reste le
-déclencheur principal tant que ce n'est pas confirmé.
+**Pas de cron natif Vercel** : le palier Hobby refuse toute fréquence
+supérieure à 1x/jour (`vercel.json` doit rester vide sur ce point, sinon le
+déploiement échoue avec l'erreur *"Hobby accounts are limited to daily cron
+jobs"*) — GitHub Actions n'a pas cette contrainte et gère donc seul le
+déclenchement.
 
 ## 4. Sécurité
 
