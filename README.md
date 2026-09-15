@@ -11,7 +11,7 @@ local, aucune base de données à administrer.
 ## Architecture
 
 ```
-vercel.json          config Vercel (vide -- pas de cron natif, cf. section 3)
+vercel.json          config Vercel (fonctions par fichier api/*.py, pas de cron natif, cf. section 3)
 requirements.txt     deps Python (pandas, entsoe-py, requests)
 api/
     cron_daily.py     GET — fetch day-ahead + FCR + capacité aFRR (1x/jour)
