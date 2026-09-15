@@ -117,21 +117,46 @@ disque. Clés utilisées :
    variables tout juste liées soient prises en compte (obligatoire — un
    déploiement déjà en cours ne les voit pas).
 
-## 3. Déclenchement des cron (GitHub Actions — seul déclencheur)
+## 3. Déclenchement des cron
 
 `.github/workflows/cron.yml` appelle `/api/cron_15min` toutes les 15 min et
 `/api/cron_daily` plusieurs fois entre 11h et 15h UTC (large marge autour de
-la publication EPEX ~12h Paris) — gratuit, fiable, indépendant du palier
-Vercel. Deux secrets à créer sur **ce dépôt GitHub**
+la publication EPEX ~12h Paris) — gratuit, indépendant du palier Vercel.
+Deux secrets à créer sur **ce dépôt GitHub**
 (Settings → Secrets and variables → Actions) :
-- `SITE_URL` = l'URL Vercel du point 1 (sans slash final)
+- `SITE_URL` = l'URL Vercel du point 1, **la vraie URL de production**, sans
+  slash final (onglet Deployments → déploiement marqué "Production", ou
+  Settings → Domains — PAS une URL de déploiement avec un hash aléatoire du
+  type `...-hyb367pqh-....vercel.app`, celles-ci sont protégées et changent
+  à chaque déploiement)
 - `CRON_SECRET` = **exactement** la même valeur que côté Vercel (point 1.3)
 
 **Pas de cron natif Vercel** : le palier Hobby refuse toute fréquence
 supérieure à 1x/jour (`vercel.json` doit rester vide sur ce point, sinon le
 déploiement échoue avec l'erreur *"Hobby accounts are limited to daily cron
-jobs"*) — GitHub Actions n'a pas cette contrainte et gère donc seul le
-déclenchement.
+jobs"*) — GitHub Actions n'a pas cette contrainte.
+
+**Limite connue de GitHub Actions** : les schedules très fréquents comme
+`*/15 * * * *` sont les plus demandés de toute la plateforme (tout le monde
+programme sur les minutes rondes) — GitHub documente lui-même que ces
+déclenchements peuvent être **retardés ou sautés** en cas de forte charge,
+en particulier sur les comptes gratuits. En pratique, ça peut se traduire
+par des trous de plusieurs heures entre deux runs plutôt qu'un run toutes
+les 15 min pile. Écritures KV idempotentes (append/overwrite) : ce n'est pas
+un problème de fiabilité applicative, juste une fraîcheur des données moins
+garantie qu'annoncée.
+
+**Déclencheur externe additionnel (recommandé pour une cadence fiable)** :
+[cron-job.org](https://console.cron-job.org/signup) (gratuit) appelle les
+mêmes endpoints de façon bien plus régulière que le scheduler GitHub Actions.
+Garder les deux actifs en même temps n'est pas un problème (idempotent) —
+juste de la redondance utile. Pour chaque cronjob créé sur cron-job.org :
+- **URL** : `https://<url-production>/api/cron_15min` (ou `/api/cron_daily`,
+  planifié une fois par jour vers 12h30 heure serveur — pas besoin des
+  répétitions 11h-15h utilisées côté GitHub Actions, un seul call suffit ici
+  puisque la cadence est fiable)
+- Onglet **Advanced** → **Custom headers** → `Authorization` =
+  `Bearer <CRON_SECRET>` (même valeur que les deux autres endroits)
 
 ## 4. Sécurité
 
