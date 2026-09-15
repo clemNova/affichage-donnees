@@ -1,2 +1,13 @@
+[project]
+name = "affichage-donnees"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "requests>=2.31",
+    "entsoe-py>=0.6",
+]
+
 [tool.vercel]
 entrypoint = "app:handler"

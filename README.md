@@ -11,11 +11,13 @@ local, aucune base de données à administrer.
 ## Architecture
 
 ```
-pyproject.toml        declare le point d'entree Python unique (app:handler)
-                       -- necessaire sur CE projet Vercel, cf. encadre ci-dessous
+pyproject.toml        deps Python (pandas, numpy, requests, entsoe-py) + declare
+                       le point d'entree Python unique (app:handler) -- necessaire
+                       sur CE projet Vercel, cf. encadre ci-dessous
+uv.lock               versions figees des dependances (genere par `uv lock`,
+                       regenerer apres toute modif de pyproject.toml)
 .python-version       fige la version Python (3.12, defaut Vercel)
 vercel.json          config Vercel (vide -- pas de cron natif, cf. section 3)
-requirements.txt     deps Python (pandas, entsoe-py, requests)
 app.py               point d'entree Python unique -- route lui-meme /api/kpis,
                      /api/cron_daily, /api/cron_15min vers la logique
                      correspondante dans api/ (imports directs, pas de HTTP interne)
@@ -56,6 +58,17 @@ unique déclaré explicitement, qui dispatche lui-même vers la logique de
 `api/cron_daily.py` / `api/cron_15min.py` (imports directs de `executer()`)
 et le store KV pour `/api/kpis` — cette fois sans ambiguïté puisque `app.py`
 est le seul fichier du projet à définir un symbole `handler`.
+
+**Dépendances via `pyproject.toml` (pas `requirements.txt`)** : dès qu'un
+`pyproject.toml` existe, Vercel résout les dépendances avec `uv lock` plutôt
+qu'avec `pip install -r requirements.txt` — et `uv lock` exige une table
+`[project]` valide (`name`, `dependencies`, ...), sinon le build échoue avec
+*"error: No `project` table found in: pyproject.toml"* (rencontré ici quand
+le fichier ne contenait que `[tool.vercel]`). Les deux mécanismes ne se
+cumulent pas : avoir à la fois `pyproject.toml` et `requirements.txt`
+laisserait `requirements.txt` ignoré silencieusement une fois `uv` actif —
+d'où la suppression de `requirements.txt`, toutes les dépendances (pandas,
+numpy, requests, entsoe-py) vivent désormais dans `pyproject.toml`.
 
 **Stockage** : un store Redis compatible REST (Vercel KV, ou un compte Upstash
 autonome) — pas de fichier, pas de disque. Clés utilisées :
