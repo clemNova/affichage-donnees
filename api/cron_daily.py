@@ -1,25 +1,21 @@
-"""Endpoint appele par le cron Vercel quotidien (cf. vercel.json, ~12h-16h) :
-day-ahead, capacite FCR et capacite aFRR sont allouees/publiees A L'AVANCE
-(cf. echange utilisateur sur le pipeline local) -- un seul fetch par jour
-suffit, inutile de le faire toutes les 15 min.
-
-Lancement manuel (test) : GET /api/cron_daily
+"""Logique du fetch quotidien (day-ahead + FCR + capacite aFRR), appelee par
+le handler unique (../app.py) sur GET /api/cron_daily -- day-ahead, capacite
+FCR et capacite aFRR sont allouees/publiees A L'AVANCE (cf. echange
+utilisateur sur le pipeline local) -- un seul fetch par jour suffit, inutile
+de le faire toutes les 15 min.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import traceback
-from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 
 from _lib import fetchers, store
-from _lib.auth import autorise
 from _lib.rte_client import charge_identifiants_rte
 
 
@@ -51,17 +47,3 @@ def executer() -> dict:
         resultats["afrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
 
     return resultats
-
-
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if not autorise(self.headers):
-            self.send_response(401)
-            self.end_headers()
-            self.wfile.write(b"unauthorized")
-            return
-        resultats = executer()
-        self.send_response(200)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps(resultats, default=str).encode())
