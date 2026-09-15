@@ -4,12 +4,12 @@ FCR et capacite aFRR sont allouees/publiees A L'AVANCE (cf. echange
 utilisateur sur le pipeline local) -- un seul fetch par jour suffit, inutile
 de le faire toutes les 15 min.
 
-Le parametre `jours_avant` (defaut 1, fenetre normale du cron quotidien) est
-aussi reutilise par backfill.py avec une fenetre bien plus large : RTE/
-ENTSO-E exposent aussi les prix PASSES, et store.maj_serie_connue_avance
-range deja n'importe quelle journee complete du payload dans hist:<domaine>
--- pas besoin d'une logique de backfill separee, juste une fenetre plus
-large sur la meme fonction.
+`fetch_et_stocke_fenetre(debut, fin)` est le coeur reutilise par backfill.py :
+constate qu'un seul appel ENTSO-E/RTE sur une fenetre large (35j) ne renvoie
+en pratique que 2-3 jours de points (silencieusement tronque cote API, pas
+d'erreur levee) -- backfill.py doit donc appeler cette fonction plusieurs
+fois avec des fenetres COURTES qui se suivent, pas une seule fois avec une
+fenetre large.
 """
 
 from __future__ import annotations
@@ -26,11 +26,7 @@ from _lib import fetchers, store
 from _lib.rte_client import charge_identifiants_rte
 
 
-def executer(jours_avant: int = 1) -> dict:
-    maintenant = pd.Timestamp.now(tz="Europe/Paris")
-    debut = maintenant.normalize() - pd.Timedelta(days=jours_avant)
-    fin = maintenant.normalize() + pd.Timedelta(days=2)
-
+def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
     resultats: dict = {}
 
     for nom_domaine, fetch, avec_extras in [
@@ -54,3 +50,10 @@ def executer(jours_avant: int = 1) -> dict:
         resultats["afrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
 
     return resultats
+
+
+def executer(jours_avant: int = 1) -> dict:
+    maintenant = pd.Timestamp.now(tz="Europe/Paris")
+    debut = maintenant.normalize() - pd.Timedelta(days=jours_avant)
+    fin = maintenant.normalize() + pd.Timedelta(days=2)
+    return fetch_et_stocke_fenetre(debut, fin)

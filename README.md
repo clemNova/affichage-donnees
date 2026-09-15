@@ -189,10 +189,16 @@ Puis ouvrir `https://<url>/` dans un navigateur.
 dashboard restent vides (`null`) tant que `hist:da`/`hist:fcr`/... ne
 contiennent pas assez de jours passés — normal juste après le premier
 déploiement, `cron_daily` ne les alimente qu'un jour à la fois. RTE/ENTSO-E
-exposant aussi les prix passés, un appel unique à `/api/backfill_historique`
-récupère directement les 35 derniers jours et les range dans `hist:<domaine>`
-d'un coup (même logique que `cron_daily`, fenêtre juste plus large — pas de
-code dupliqué, cf. `api/backfill.py`) :
+exposant aussi les prix passés, `/api/backfill_historique` récupère les 35
+derniers jours et les range dans `hist:<domaine>` (même logique que
+`cron_daily` — `cron_daily.fetch_et_stocke_fenetre`, réutilisée telle
+quelle, cf. `api/backfill.py`). **Découpé en fenêtres de 5 jours qui se
+suivent** plutôt qu'un seul appel sur 35 jours d'un coup : un appel unique
+sur une fenêtre aussi large ne renvoie en pratique que 2-3 jours de points
+(troncature silencieuse côté API ENTSO-E/RTE, pas d'erreur levée — constaté
+en usage réel). La réponse inclut `detail_par_chunk` (nombre de points par
+fenêtre de 5 jours) pour vérifier qu'aucune fenêtre n'est anormalement
+vide :
 
 ```powershell
 curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/backfill_historique
