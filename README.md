@@ -190,13 +190,18 @@ dashboard restent vides (`null`) tant que `hist:da`/`hist:fcr`/... ne
 contiennent pas assez de jours passés — normal juste après le premier
 déploiement, `cron_daily` ne les alimente qu'un jour à la fois. RTE/ENTSO-E
 exposant aussi les prix passés, `/api/backfill_historique` récupère les 35
-derniers jours et les range dans `hist:<domaine>` (même logique que
-`cron_daily` — `cron_daily.fetch_et_stocke_fenetre`, réutilisée telle
-quelle, cf. `api/backfill.py`). **Découpé en fenêtres de 5 jours qui se
-suivent** plutôt qu'un seul appel sur 35 jours d'un coup : un appel unique
-sur une fenêtre aussi large ne renvoie en pratique que 2-3 jours de points
-(troncature silencieuse côté API ENTSO-E/RTE, pas d'erreur levée — constaté
-en usage réel). La réponse inclut `detail_par_chunk` (nombre de points par
+derniers jours et les range dans `hist:<domaine>` (cf. `api/backfill.py`).
+Deux contraintes constatées en usage réel, toutes deux gérées :
+- **Découpé en fenêtres de 5 jours qui se suivent**, pas un seul appel sur
+  35 jours d'un coup : un appel unique sur une fenêtre aussi large ne
+  renvoie en pratique que 2-3 jours de points (troncature silencieuse côté
+  API ENTSO-E/RTE, pas d'erreur levée).
+- **Les 3 domaines (day-ahead, FCR, aFRR capacité) sont récupérés en
+  parallèle** (3 threads, I/O-bound) : 7 fenêtres × 3 appels strictement
+  séquentiels dépassait les 60s max du palier Hobby
+  (`FUNCTION_INVOCATION_TIMEOUT`).
+
+La réponse inclut `detail_par_chunk` par domaine (nombre de points par
 fenêtre de 5 jours) pour vérifier qu'aucune fenêtre n'est anormalement
 vide :
 
