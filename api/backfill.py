@@ -11,6 +11,15 @@ Deux contraintes combinees, decouvertes en usage reel :
    une fenetre dans hist:<domaine> des l'appel de la fenetre SUIVANTE).
 2. 7 fenetres x 3 appels API strictement sequentiels depasse le timeout
    Vercel (60s max, palier Hobby) -- FUNCTION_INVOCATION_TIMEOUT constate.
+3. Chaque fenetre ECRASE raw:<domaine> (store.maj_serie_connue_avance) --
+   la derniere fenetre de backfill s'arretant a hier (jamais aujourd'hui,
+   journee incomplete), raw:<domaine> se retrouvait SANS les donnees
+   d'aujourd'hui/demain que cron_daily y maintient normalement (constate :
+   da_prix_courant disparu du snapshot, courbe du jour reduite a 1 point
+   apres un backfill). Un dernier appel a fetch_et_stocke_fenetre() avec la
+   fenetre normale du cron quotidien restaure cet etat juste apres le
+   backfill (et archive au passage la derniere fenetre de backfill dans
+   hist:<domaine>, sans perte).
 
 da / fcr / afrr_capa sont des domaines KV independants (raw:da, raw:fcr,
 raw:afrr_up_capa+down_capa) : aucune dependance d'ordre ENTRE eux, seulement
@@ -34,6 +43,8 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
+
+import cron_daily
 
 from _lib import fetchers, store
 from _lib.rte_client import charge_identifiants_rte
@@ -112,6 +123,19 @@ def executer() -> dict:
         detail_fcr = futur_fcr.result()
         detail_capa = futur_capa.result()
 
+    # Chaque fenetre de backfill ECRASE raw:<domaine> avec SES points
+    # (store.maj_serie_connue_avance) -- la derniere fenetre s'arretant a
+    # hier (fin_globale exclut aujourd'hui, journee incomplete), raw:<domaine>
+    # se retrouve donc SANS les donnees d'aujourd'hui/demain que cron_daily
+    # y maintient normalement (constate : da_prix_courant disparu, series.da
+    # reduite a 1 point apres un backfill). Restaure cette fenetre courante
+    # juste apres -- archive au passage la derniere fenetre de backfill dans
+    # hist:<domaine> (comportement normal de maj_serie_connue_avance), donc
+    # aucune perte de l'historique qui vient d'etre construit.
+    restauration = cron_daily.fetch_et_stocke_fenetre(
+        fin_globale - pd.Timedelta(days=1), fin_globale + pd.Timedelta(days=2)
+    )
+
     return {
         "da": {"total": _total(detail_da), "detail_par_chunk": detail_da},
         "fcr": {"total": _total(detail_fcr), "detail_par_chunk": detail_fcr},
@@ -120,4 +144,5 @@ def executer() -> dict:
             "down_total": _total(detail_capa, "down"),
             "detail_par_chunk": detail_capa,
         },
+        "restauration_fenetre_courante": restauration,
     }
