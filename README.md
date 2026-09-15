@@ -11,15 +11,19 @@ local, aucune base de données à administrer.
 ## Architecture
 
 ```
-.python-version      fige la version Python (3.12, defaut Vercel)
+pyproject.toml        declare le point d'entree Python unique (app:handler)
+                       -- necessaire sur CE projet Vercel, cf. encadre ci-dessous
+.python-version       fige la version Python (3.12, defaut Vercel)
 vercel.json          config Vercel (vide -- pas de cron natif, cf. section 3)
 requirements.txt     deps Python (pandas, entsoe-py, requests)
+app.py               point d'entree Python unique -- route lui-meme /api/kpis,
+                     /api/cron_daily, /api/cron_15min vers la logique
+                     correspondante dans api/ (imports directs, pas de HTTP interne)
 api/
-    kpis.py           fonction Vercel /api/kpis — lit kpis:latest dans le KV (public)
-    cron_daily.py     fonction Vercel /api/cron_daily — fetch day-ahead + FCR + capacité aFRR (1x/jour)
-    cron_15min.py     fonction Vercel /api/cron_15min — fetch activation aFRR + calcule le snapshot KPI (15 min)
+    cron_daily.py     logique (executer()) — fetch day-ahead + FCR + capacité aFRR (1x/jour)
+    cron_15min.py     logique (executer()) — fetch activation aFRR + calcule le snapshot KPI (15 min)
     _lib/
-        http_utils.py    helpers de reponse HTTP (JSON/CORS, refus 401) partages par les 3 fonctions
+        http_utils.py    helpers de reponse HTTP (JSON/CORS, refus 401) utilises par app.py
         auth.py         verrou d'accès des endpoints cron (fermé par défaut, cf. section 4)
         calc.py          calculs purs (TB2, moyennes, curseur, bas/peak...)
         store.py          orchestration KV (historique 35j, calcul du snapshot)
@@ -33,26 +37,25 @@ public/
     cron.yml           déclencheur planifié (15 min + fetch quotidien), cf. section 2
 ```
 
-**Un fichier `api/*.py` = une fonction Vercel** (fonctions Python "par
-fichier", cf. [doc officielle
-Vercel](https://vercel.com/docs/functions/runtimes/python/api-directory)) :
-chaque fichier définit une classe `handler(BaseHTTPRequestHandler)` au niveau
-module, et Vercel route automatiquement `/api/<nom>` vers `api/<nom>.py`.
-C'est le mode adapté ici (3 endpoints indépendants, pas de framework web).
-
-Une tentative précédente avait centralisé le routing dans un `app.py` racine
-déclaré via `pyproject.toml` (`[tool.vercel] entrypoint = "app:handler"`),
-sur l'hypothèse (fausse) que Vercel n'accepterait plus qu'un point d'entrée
-unique par projet. En réalité ce mécanisme sert à autre chose : un entrypoint
-racine (`app.py`/`main.py`/...) n'est requis QUE si Vercel détecte un
-**framework preset** Python (FastAPI/Flask/Django via une dépendance dans
-`requirements.txt`/`pyproject.toml`) — et ce mode attend une variable `app`
-ou `application` (ASGI/WSGI), pas une classe `BaseHTTPRequestHandler`.
-Mélanger les deux mécanismes (comme le faisait l'ancien `app.py`) ne
-fonctionne dans aucun des deux modes. La présence même de `pyproject.toml`
-avec un bloc `[tool.vercel]` pouvait suffire à créer de l'ambiguïté côté
-détection — d'où sa suppression ici, au profit du mode "fichier par fichier"
-documenté et sans configuration additionnelle requise.
+**Pourquoi un seul `app.py` et pas un fichier par endpoint dans `api/`** : la
+doc Vercel décrit un mode "fonctions Python par fichier dans `/api`" (chaque
+fichier définit sa propre classe `handler`, sans entrypoint requis) —
+en pratique, sur ce projet, ce mode ne s'active pas : un déploiement avec
+`api/kpis.py`, `api/cron_daily.py`, `api/cron_15min.py` définissant chacun
+`class handler(BaseHTTPRequestHandler)` échoue au build avec l'erreur *"No
+python entrypoint found in default locations, but found potential
+entrypoints: api/cron_15min.py (variable: handler), api/cron_daily.py
+(variable: handler), api/kpis.py (variable: handler)"* — Vercel trouve 3
+candidats et refuse de choisir tout seul. Le message d'erreur suggère
+lui-même la solution : déclarer explicitement UN entrypoint via
+`pyproject.toml` (`[tool.vercel] entrypoint = "module:variable"`) — et ce
+mécanisme accepte bien une classe `BaseHTTPRequestHandler` comme cible (pas
+uniquement `app`/`application` ASGI/WSGI, contrairement à ce que suggère la
+doc générale sur les entrypoints "framework"). D'où `app.py` : un routeur
+unique déclaré explicitement, qui dispatche lui-même vers la logique de
+`api/cron_daily.py` / `api/cron_15min.py` (imports directs de `executer()`)
+et le store KV pour `/api/kpis` — cette fois sans ambiguïté puisque `app.py`
+est le seul fichier du projet à définir un symbole `handler`.
 
 **Stockage** : un store Redis compatible REST (Vercel KV, ou un compte Upstash
 autonome) — pas de fichier, pas de disque. Clés utilisées :
@@ -153,10 +156,9 @@ qui a écrit ce code :
   environnement précis (risque résiduel sur la taille du package — 500 MB
   max, cf. doc Vercel).
 - Le déploiement réel (`vercel --prod` ou push GitHub) reste à faire par
-  l'utilisateur — c'est le seul test qui confirme que le mode "fonctions par
-  fichier" est bien pris en compte par le projet Vercel (vérifier dans
-  l'onglet **Deployments → Functions** du dashboard qu'on voit bien 3
-  fonctions distinctes `api/kpis`, `api/cron_daily`, `api/cron_15min`, pas un
-  entrypoint unique ni une erreur de framework preset).
+  l'utilisateur — c'est le seul test qui confirme que `app.py` est bien
+  reconnu comme l'entrypoint (build sans erreur *"No python entrypoint
+  found"*, et l'onglet **Deployments → Functions** du dashboard montre une
+  seule fonction Python servant `/api/*`).
 - Fréquence réelle des cron Vercel sur le palier Hobby (cf. section 3) — non
   applicable ici puisque GitHub Actions est l'unique déclencheur.
