@@ -70,8 +70,9 @@ laisserait `requirements.txt` ignoré silencieusement une fois `uv` actif —
 d'où la suppression de `requirements.txt`, toutes les dépendances (pandas,
 numpy, requests, entsoe-py) vivent désormais dans `pyproject.toml`.
 
-**Stockage** : un store Redis compatible REST (Vercel KV, ou un compte Upstash
-autonome) — pas de fichier, pas de disque. Clés utilisées :
+**Stockage** : un store Redis compatible REST (intégration Marketplace
+"Upstash for Redis", ou un compte Upstash autonome) — pas de fichier, pas de
+disque. Clés utilisées :
 - `raw:<domaine>` (da, fcr, afrr_up_capa, afrr_down_capa) — quelques jours de
   points 15 min, remplacés chaque jour par `cron_daily`.
 - `raw:afrr_activation` — fenêtre glissante ~2 jours, fusionnée par `cron_15min`.
@@ -101,12 +102,20 @@ autonome) — pas de fichier, pas de disque. Clés utilisées :
 
 ## 2. Store KV
 
-1. Projet Vercel → onglet **"Storage"** → **"Create Database"** → un store
-   **KV / Redis** (palier gratuit largement suffisant, backend Upstash).
-2. **"Connect to Project"** → sélectionne ce projet. Vercel ajoute
-   automatiquement `KV_REST_API_URL`/`KV_REST_API_TOKEN` — rien à copier.
-3. **"Deployments" → dernier déploiement → "…" → "Redeploy"** pour que la
-   variable KV tout juste liée soit prise en compte.
+"Vercel KV" natif n'existe plus — c'est désormais une intégration du
+**Marketplace Vercel**, backend Upstash.
+
+1. Projet Vercel → onglet **"Storage"** → **"Create Database"** (ou
+   Marketplace) → **"Upstash for Redis"** (pas "Upstash Vector"/"QStash"/
+   "Search" — bien "Upstash for Redis").
+2. Crée une base sur le palier gratuit et **lie-la à ce projet** (l'étape de
+   liaison est intégrée à la création via le Marketplace).
+3. Vercel ajoute automatiquement `KV_REST_API_URL`/`KV_REST_API_TOKEN` aux
+   variables d'environnement du projet — rien à copier, le code
+   (`api/_lib/kv.py`) les lit tel quel.
+4. **"Deployments" → dernier déploiement → "…" → "Redeploy"** pour que les
+   variables tout juste liées soient prises en compte (obligatoire — un
+   déploiement déjà en cours ne les voit pas).
 
 ## 3. Déclenchement des cron (GitHub Actions — seul déclencheur)
 
