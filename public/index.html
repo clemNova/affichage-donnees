@@ -89,7 +89,7 @@
   .extreme-badge.bas .eb-label{color:var(--pos)}
   .extreme-badge.peak .eb-label{color:var(--neg)}
 
-  .da-side-col{flex:0 0 300px;display:flex;flex-direction:column;gap:10px}
+  .da-side-col{flex:0 0 400px;display:flex;flex-direction:column;gap:10px}
   .kpi-box{flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:12px 16px}
   .kpi-box .kpi-label{font-size:.72rem;color:var(--text-faint);letter-spacing:.02em}
   .kpi-box .kpi-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -118,12 +118,6 @@
 
   /* --- Row 2 : Reserves --- */
   .row-reserves{flex:1;min-height:0;display:flex;flex-direction:column}
-  .activation-box{display:flex;gap:16px;background:var(--panel-2);border:1px solid var(--line-muted);border-radius:8px;padding:7px 14px}
-  .activation-col{display:flex;flex-direction:column;gap:1px}
-  .activation-col .ac-label{font-size:.64rem;color:var(--text-faint-2);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:5px}
-  .activation-col .ac-swatch{display:inline-block;width:7px;height:7px;border-radius:50%}
-  .activation-col .ac-value{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;font-size:.98rem;color:var(--text)}
-  .activation-col .ac-delai{font-size:.66rem;color:var(--res)}
 
   .reserves-body{flex:1;min-height:0;display:flex;gap:14px}
   .reserves-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px}
@@ -132,6 +126,15 @@
   .mini-box .mini-label{font-size:.68rem;color:var(--text-faint);display:flex;align-items:center;gap:5px}
   .mini-box .mini-swatch{display:inline-block;width:7px;height:7px;border-radius:50%}
   .mini-box .mini-value{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;font-size:1.15rem;display:flex;align-items:center;gap:8px}
+
+  /* Prix d'activation -- colonne a droite des courbes de capacite (FCR/aFRR) */
+  .activation-col-wrap{flex:0 0 230px;display:flex;flex-direction:column;padding:14px 16px;gap:10px}
+  .activation-stack{flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px}
+  .activation-item{display:flex;flex-direction:column;gap:4px}
+  .activation-item .ac-label{font-size:.68rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
+  .activation-item .ac-swatch{display:inline-block;width:8px;height:8px;border-radius:50%}
+  .activation-item .ac-value{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;font-size:1.4rem;color:var(--text)}
+  .activation-item .ac-delai{font-size:.7rem;color:var(--res)}
 
   /* --- Row 3 : Gaz --- */
   .row-gaz{flex:0 0 58px;display:flex;align-items:center;gap:14px;padding:0 18px}
@@ -207,18 +210,6 @@
           <span class="dot res"></span>
           <span class="section-title"><em>Réserves</em> — capacité FCR &amp; aFRR, allouées à l'avance</span>
         </div>
-        <div class="activation-box">
-          <div class="activation-col">
-            <span class="ac-label"><span class="ac-swatch" style="background:var(--hausse)"></span>Activation hausse</span>
-            <span class="ac-value" id="act-up-dernier">—</span>
-            <span class="ac-delai" id="act-up-delai"></span>
-          </div>
-          <div class="activation-col">
-            <span class="ac-label"><span class="ac-swatch" style="background:var(--baisse)"></span>Activation baisse</span>
-            <span class="ac-value" id="act-down-dernier">—</span>
-            <span class="ac-delai" id="act-down-delai"></span>
-          </div>
-        </div>
       </div>
 
       <div class="reserves-body">
@@ -249,6 +240,22 @@
             <div class="mini-box">
               <span class="mini-label"><span class="mini-swatch" style="background:var(--baisse)"></span>Baisse — moy. jour</span>
               <span class="mini-value" id="afrr-down-moyenne">—<span id="afrr-down-moyenne-pill"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card accent-res activation-col-wrap">
+          <span class="section-title"><em>Prix d'activation</em></span>
+          <div class="activation-stack">
+            <div class="activation-item">
+              <span class="ac-label"><span class="ac-swatch" style="background:var(--hausse)"></span>Hausse</span>
+              <span class="ac-value" id="act-up-dernier">—</span>
+              <span class="ac-delai" id="act-up-delai"></span>
+            </div>
+            <div class="activation-item">
+              <span class="ac-label"><span class="ac-swatch" style="background:var(--baisse)"></span>Baisse</span>
+              <span class="ac-value" id="act-down-dernier">—</span>
+              <span class="ac-delai" id="act-down-delai"></span>
             </div>
           </div>
         </div>
