@@ -274,6 +274,13 @@
   // solliciter /api/kpis plus souvent, la page resterait de toute facon
   // figee sur le meme snapshot entre deux runs.
   const REFRESH_MS = 15 * 60 * 1000;
+  // Le prix "courant" day-ahead et la position du curseur sur les graphes ne
+  // dependent QUE de l'heure locale du navigateur + de la courbe du jour
+  // deja connue (cf. render() -> da-courant calcule cote client) -- inutile
+  // d'attendre le prochain fetch reseau pour basculer sur le bon creneau au
+  // bon moment, un simple redessin local suffit (LOCAL_TICK_MS, aucun appel
+  // /api/kpis).
+  const LOCAL_TICK_MS = 60 * 1000;
 
   function xScale(hour){ return PAD_L + (hour/24) * plotW; }
 
@@ -543,6 +550,8 @@
     document.getElementById("error-banner").classList.remove("visible");
   }
 
+  let dernierSnapshot = null;
+
   async function chargerEtRendre(){
     try{
       const reponse = await fetch("/api/kpis", {cache:"no-store"});
@@ -554,14 +563,22 @@
         return;
       }
       masqueErreur();
+      dernierSnapshot = snap;
       render(snap);
     }catch(erreur){
       afficheErreur(`${erreur.message} — la page réessaiera dans 15 min, affichage figé sur la dernière valeur connue en attendant.`);
     }
   }
 
+  // Redessin LOCAL (prix courant + curseur), sans appel reseau -- juste
+  // rejouer render() sur le dernier snapshot connu avec l'heure actuelle.
+  function retracerLocalement(){
+    if(dernierSnapshot) render(dernierSnapshot);
+  }
+
   chargerEtRendre();
   setInterval(chargerEtRendre, REFRESH_MS);
+  setInterval(retracerLocalement, LOCAL_TICK_MS);
 })();
 </script>
 </body>
