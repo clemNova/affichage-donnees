@@ -1,8 +1,10 @@
-"""Logique du fetch quotidien (day-ahead + FCR + capacite aFRR), appelee par
-le handler unique (../app.py) sur GET /api/cron_daily -- day-ahead, capacite
-FCR et capacite aFRR sont allouees/publiees A L'AVANCE (cf. echange
-utilisateur sur le pipeline local) -- un seul fetch par jour suffit, inutile
-de le faire toutes les 15 min.
+"""Fonction Vercel /api/cron_daily -- fetch quotidien (day-ahead + FCR +
+capacite aFRR) : day-ahead, capacite FCR et capacite aFRR sont
+allouees/publiees A L'AVANCE (cf. echange utilisateur sur le pipeline local)
+-- un seul fetch par jour suffit, inutile de le faire toutes les 15 min.
+Fichier autonome, un fichier api/*.py = une fonction Vercel (cf. README,
+section Architecture). Proteges par CRON_SECRET (cf. _lib/auth.py) : ces
+appels consomment un vrai quota RTE.
 """
 
 from __future__ import annotations
@@ -10,12 +12,15 @@ from __future__ import annotations
 import os
 import sys
 import traceback
+from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 
 from _lib import fetchers, store
+from _lib.auth import autorise
+from _lib.http_utils import refuser, repondre
 from _lib.rte_client import charge_identifiants_rte
 
 
@@ -47,3 +52,14 @@ def executer() -> dict:
         resultats["afrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
 
     return resultats
+
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if not autorise(self.headers):
+            refuser(self)
+            return
+        try:
+            repondre(self, 200, executer())
+        except Exception:
+            repondre(self, 500, {"erreur": traceback.format_exc(limit=2)})

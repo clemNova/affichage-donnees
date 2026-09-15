@@ -11,18 +11,15 @@ local, aucune base de données à administrer.
 ## Architecture
 
 ```
-pyproject.toml        declare le point d'entree Python unique (app:handler) --
-                       le runtime Python de Vercel n'accepte plus qu'un seul
-                       point d'entree par projet (voir encadre ci-dessous)
+.python-version      fige la version Python (3.12, defaut Vercel)
 vercel.json          config Vercel (vide -- pas de cron natif, cf. section 3)
 requirements.txt     deps Python (pandas, entsoe-py, requests)
-app.py               point d'entree Python unique -- route lui-meme /api/kpis,
-                     /api/cron_daily, /api/cron_15min vers la logique
-                     correspondante dans api/ (imports directs, pas de HTTP interne)
 api/
-    cron_daily.py     logique (executer()) — fetch day-ahead + FCR + capacité aFRR (1x/jour)
-    cron_15min.py     logique (executer()) — fetch activation aFRR + calcule le snapshot KPI (15 min)
+    kpis.py           fonction Vercel /api/kpis — lit kpis:latest dans le KV (public)
+    cron_daily.py     fonction Vercel /api/cron_daily — fetch day-ahead + FCR + capacité aFRR (1x/jour)
+    cron_15min.py     fonction Vercel /api/cron_15min — fetch activation aFRR + calcule le snapshot KPI (15 min)
     _lib/
+        http_utils.py    helpers de reponse HTTP (JSON/CORS, refus 401) partages par les 3 fonctions
         auth.py         verrou d'accès des endpoints cron (fermé par défaut, cf. section 4)
         calc.py          calculs purs (TB2, moyennes, curseur, bas/peak...)
         store.py          orchestration KV (historique 35j, calcul du snapshot)
@@ -36,16 +33,26 @@ public/
     cron.yml           déclencheur planifié (15 min + fetch quotidien), cf. section 2
 ```
 
-**Pourquoi un seul `app.py` et pas un fichier par endpoint dans `api/`** : la
-structure initiale (un fichier = une fonction serverless, `api/kpis.py`,
-`api/cron_daily.py`, `api/cron_15min.py` avec chacun sa classe `handler`)
-échouait systématiquement au déploiement avec l'erreur *"No python entrypoint
-found in default locations"*, quelle que soit la configuration testée dans
-`vercel.json` (functions, framework: null, emplacement de `requirements.txt`).
-Le runtime Python de Vercel n'accepte en pratique qu'un **point d'entrée
-unique** par projet — `app.py` centralise donc le routing (sur `self.path`)
-et appelle directement les fonctions `executer()` de `api/cron_daily.py` /
-`api/cron_15min.py` et le store KV pour `/api/kpis`.
+**Un fichier `api/*.py` = une fonction Vercel** (fonctions Python "par
+fichier", cf. [doc officielle
+Vercel](https://vercel.com/docs/functions/runtimes/python/api-directory)) :
+chaque fichier définit une classe `handler(BaseHTTPRequestHandler)` au niveau
+module, et Vercel route automatiquement `/api/<nom>` vers `api/<nom>.py`.
+C'est le mode adapté ici (3 endpoints indépendants, pas de framework web).
+
+Une tentative précédente avait centralisé le routing dans un `app.py` racine
+déclaré via `pyproject.toml` (`[tool.vercel] entrypoint = "app:handler"`),
+sur l'hypothèse (fausse) que Vercel n'accepterait plus qu'un point d'entrée
+unique par projet. En réalité ce mécanisme sert à autre chose : un entrypoint
+racine (`app.py`/`main.py`/...) n'est requis QUE si Vercel détecte un
+**framework preset** Python (FastAPI/Flask/Django via une dépendance dans
+`requirements.txt`/`pyproject.toml`) — et ce mode attend une variable `app`
+ou `application` (ASGI/WSGI), pas une classe `BaseHTTPRequestHandler`.
+Mélanger les deux mécanismes (comme le faisait l'ancien `app.py`) ne
+fonctionne dans aucun des deux modes. La présence même de `pyproject.toml`
+avec un bloc `[tool.vercel]` pouvait suffire à créer de l'ambiguïté côté
+détection — d'où sa suppression ici, au profit du mode "fichier par fichier"
+documenté et sans configuration additionnelle requise.
 
 **Stockage** : un store Redis compatible REST (Vercel KV, ou un compte Upstash
 autonome) — pas de fichier, pas de disque. Clés utilisées :
@@ -143,10 +150,13 @@ qui a écrit ce code :
   store en mémoire, résultats cohérents — jamais exécutée dans le runtime
   Python réel de Vercel.
 - Import `entsoe-py` en fonction serverless Python : jamais testé dans cet
-  environnement précis (risque résiduel sur la taille du package).
-- Imports relatifs `_lib` : chaque `api/*.py` ajoute son propre répertoire à
-  `sys.path` avant d'importer `_lib` — si le déploiement échoue avec une
-  erreur d'import, c'est le premier point à regarder (aplatir `_lib/`
-  directement dans chaque fichier `api/*.py`, ou ajuster `vercel.json` avec
-  `functions`/`includeFiles`, sont les solutions de repli habituelles).
-- Fréquence réelle des cron Vercel sur le palier Hobby (cf. section 3).
+  environnement précis (risque résiduel sur la taille du package — 500 MB
+  max, cf. doc Vercel).
+- Le déploiement réel (`vercel --prod` ou push GitHub) reste à faire par
+  l'utilisateur — c'est le seul test qui confirme que le mode "fonctions par
+  fichier" est bien pris en compte par le projet Vercel (vérifier dans
+  l'onglet **Deployments → Functions** du dashboard qu'on voit bien 3
+  fonctions distinctes `api/kpis`, `api/cron_daily`, `api/cron_15min`, pas un
+  entrypoint unique ni une erreur de framework preset).
+- Fréquence réelle des cron Vercel sur le palier Hobby (cf. section 3) — non
+  applicable ici puisque GitHub Actions est l'unique déclencheur.
