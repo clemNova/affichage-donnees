@@ -3,6 +3,13 @@ le handler unique (../app.py) sur GET /api/cron_daily -- day-ahead, capacite
 FCR et capacite aFRR sont allouees/publiees A L'AVANCE (cf. echange
 utilisateur sur le pipeline local) -- un seul fetch par jour suffit, inutile
 de le faire toutes les 15 min.
+
+Le parametre `jours_avant` (defaut 1, fenetre normale du cron quotidien) est
+aussi reutilise par backfill.py avec une fenetre bien plus large : RTE/
+ENTSO-E exposent aussi les prix PASSES, et store.maj_serie_connue_avance
+range deja n'importe quelle journee complete du payload dans hist:<domaine>
+-- pas besoin d'une logique de backfill separee, juste une fenetre plus
+large sur la meme fonction.
 """
 
 from __future__ import annotations
@@ -19,9 +26,9 @@ from _lib import fetchers, store
 from _lib.rte_client import charge_identifiants_rte
 
 
-def executer() -> dict:
+def executer(jours_avant: int = 1) -> dict:
     maintenant = pd.Timestamp.now(tz="Europe/Paris")
-    debut = maintenant.normalize() - pd.Timedelta(days=1)
+    debut = maintenant.normalize() - pd.Timedelta(days=jours_avant)
     fin = maintenant.normalize() + pd.Timedelta(days=2)
 
     resultats: dict = {}

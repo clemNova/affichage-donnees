@@ -160,6 +160,24 @@ curl.exe https://<url>/api/kpis
 
 Puis ouvrir `https://<url>/` dans un navigateur.
 
+**Remplir l'historique 30j sans attendre 30 jours** : les pills "vs 30j" du
+dashboard restent vides (`null`) tant que `hist:da`/`hist:fcr`/... ne
+contiennent pas assez de jours passés — normal juste après le premier
+déploiement, `cron_daily` ne les alimente qu'un jour à la fois. RTE/ENTSO-E
+exposant aussi les prix passés, un appel unique à `/api/backfill_historique`
+récupère directement les 35 derniers jours et les range dans `hist:<domaine>`
+d'un coup (même logique que `cron_daily`, fenêtre juste plus large — pas de
+code dupliqué, cf. `api/backfill.py`) :
+
+```powershell
+curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/backfill_historique
+```
+
+Endpoint protégé par le même `CRON_SECRET`, mais **pas** ajouté au
+déclencheur GitHub Actions (`.github/workflows/cron.yml`) — c'est une
+opération ponctuelle, à relancer à la main si besoin (ex. après un reset du
+KV), pas à chaque run.
+
 ## 6. Affichage sur l'écran (Teams Rooms / TV)
 
 Ouvrir `https://<url>/` en plein écran (F11) sur le navigateur du poste

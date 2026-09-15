@@ -24,11 +24,23 @@ from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "api"))
 
+import backfill
 import cron_15min
 import cron_daily
 from _lib import kv
 from _lib.auth import autorise
 from _lib.http_utils import refuser, repondre
+
+# Endpoints proteges par CRON_SECRET -- declenchent de vrais appels RTE/
+# ENTSO-E (quota limite). /api/backfill_historique n'est PAS ajoute au
+# declencheur planifie GitHub Actions (cf. .github/workflows/cron.yml) :
+# c'est une operation ponctuelle (remplir hist:<domaine> d'un coup au lieu
+# d'attendre 35 jours), a appeler manuellement.
+MODULES_PROTEGES = {
+    "/api/cron_daily": cron_daily,
+    "/api/cron_15min": cron_15min,
+    "/api/backfill_historique": backfill,
+}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -43,13 +55,12 @@ class handler(BaseHTTPRequestHandler):
                 repondre(self, 500, {"erreur": str(erreur)})
             return
 
-        if chemin in ("/api/cron_daily", "/api/cron_15min"):
+        if chemin in MODULES_PROTEGES:
             if not autorise(self.headers):
                 refuser(self)
                 return
-            module = cron_daily if chemin == "/api/cron_daily" else cron_15min
             try:
-                repondre(self, 200, module.executer())
+                repondre(self, 200, MODULES_PROTEGES[chemin].executer())
             except Exception:
                 repondre(self, 500, {"erreur": traceback.format_exc(limit=2)})
             return
