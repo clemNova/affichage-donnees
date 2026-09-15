@@ -11,9 +11,13 @@ local, aucune base de données à administrer.
 ## Architecture
 
 ```
-vercel.json          config Vercel (fonctions par fichier api/*.py, pas de cron natif, cf. section 3)
-requirements.txt     deps Python (pandas, entsoe-py, requests)
+vercel.json          config Vercel (vide -- pas de cron natif, cf. section 3)
 api/
+    requirements.txt  deps Python (pandas, entsoe-py, requests) -- volontairement
+                       DANS api/ et pas a la racine : sinon Vercel detecte le
+                       depot comme "app Python" unique et cherche un entrypoint
+                       global au lieu de traiter chaque fichier de api/ comme
+                       une fonction serverless independante
     cron_daily.py     GET — fetch day-ahead + FCR + capacité aFRR (1x/jour)
     cron_15min.py     GET — fetch activation aFRR + calcule le snapshot KPI (15 min)
     kpis.py           GET — renvoie le dernier snapshot (lu par la page)
