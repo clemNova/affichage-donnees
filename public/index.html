@@ -424,6 +424,15 @@
     const fin = new Date(d.getTime() + 15*60000);
     return `créneau ${fmtHeure(iso)}–${fmtHeure(fin.toISOString())}`;
   }
+  // Debut (ISO) du quart d'heure d'index qIdx (0..95) pour AUJOURD'HUI,
+  // en heure locale du navigateur -- sert a afficher un creneau "courant"
+  // calcule cote client, sans dependre de l'instant ou cron_15min a tourne
+  // cote serveur (cf. calculDaCourant).
+  function debutCreneauIso(qIdx){
+    const maintenant = new Date();
+    const d = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate(), Math.floor(qIdx/4), (qIdx%4)*15, 0, 0);
+    return d.toISOString();
+  }
   function pillHtml(ecartPct){
     if(ecartPct === null || ecartPct === undefined || Number.isNaN(ecartPct)) return "";
     const up = ecartPct >= 0;
@@ -464,13 +473,22 @@
   function render(snap){
     const maintenant = new Date();
     const nowHour = maintenant.getHours() + maintenant.getMinutes()/60 + maintenant.getSeconds()/3600;
+    const series = snap.series || {};
 
     document.getElementById("clock").innerHTML =
       `MAJ <strong>${snap.fetched_at ? fmtHeure(snap.fetched_at) : "—"}</strong> · toutes les 15 min`;
 
     // --- Day-ahead ---
-    setText("da-courant", snap.da_prix_courant !== undefined ? `${fmt(snap.da_prix_courant,2)} €/MWh` : "—");
-    setText("da-courant-ts", fmtCreneau(snap.da_prix_courant_horodatage));
+    // Prix courant calcule COTE CLIENT depuis la courbe du jour deja connue
+    // (series.da, publiee a l'avance) plutot que lu depuis le snapshot
+    // serveur (da_prix_courant) -- reste juste meme si cron_15min a du
+    // retard ou tourne a un instant decale par rapport au quart d'heure en
+    // cours (cf. limite de precision du scheduler GitHub Actions).
+    const da = remplitJournee(series.da);
+    const qIdxCourant = Math.min(95, Math.floor(nowHour*4));
+    const daCourant = da[qIdxCourant];
+    setText("da-courant", daCourant !== null ? `${fmt(daCourant,2)} €/MWh` : "—");
+    setText("da-courant-ts", fmtCreneau(debutCreneauIso(qIdxCourant)));
     setText("da-moyenne", snap.da_moyenne_jour !== undefined ? `${fmt(snap.da_moyenne_jour,2)} €/MWh` : "—");
     setHtml("da-moyenne-pill", pillHtml(snap.da_ecart_pct));
     setText("da-tb2", snap.da_tb2 !== undefined ? `${fmt(snap.da_tb2,2)} €/MWh` : "—");
@@ -497,8 +515,6 @@
     setText("act-down-delai", snap.afrr_down_activation_delai_min !== undefined && snap.afrr_down_activation_delai_min !== null ? `⏳ ${Math.round(snap.afrr_down_activation_delai_min)} min` : "");
 
     // --- graphes ---
-    const series = snap.series || {};
-    const da = remplitJournee(series.da);
     const fcr = remplitJournee(series.fcr);
     const afrrUp = remplitJournee(series.afrr_up_capa);
     const afrrDown = remplitJournee(series.afrr_down_capa);
