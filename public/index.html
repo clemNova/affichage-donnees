@@ -43,8 +43,15 @@
   header{display:flex;align-items:baseline;justify-content:space-between;gap:12px 24px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:12px;flex:0 0 auto}
   h1{font-size:1.25rem;font-weight:600;letter-spacing:-0.01em;margin:0}
   h1 .subhead{color:var(--text-dim);font-weight:400;font-size:.8rem;margin-left:10px}
+  .header-right{display:flex;align-items:baseline;gap:12px}
   .clock{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:.8rem;color:var(--text-dim);text-align:right}
   .clock strong{color:var(--text);font-weight:600}
+  .btn-fullscreen{
+    flex:none;align-self:center;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--line-muted);border-radius:6px;color:var(--text-dim);
+    font-size:13px;line-height:1;cursor:pointer;padding:0;
+  }
+  .btn-fullscreen:hover{color:var(--text);border-color:var(--line)}
 
   .error-banner{
     display:none;gap:10px;align-items:flex-start;
@@ -99,6 +106,7 @@
   .tick-label{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;fill:var(--text-faint)}
   .grid-line{stroke:var(--grid);stroke-width:1}
   .axis-line{stroke:var(--line-muted);stroke-width:1}
+  .zero-line{stroke:var(--text-faint);stroke-width:1.6}
 
   .legend{display:flex;gap:14px;margin-top:4px;flex:0 0 auto}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--text-dim)}
@@ -134,7 +142,7 @@
   .activation-item .ac-label{font-size:.68rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
   .activation-item .ac-swatch{display:inline-block;width:8px;height:8px;border-radius:50%}
   .activation-item .ac-value{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;font-size:1.4rem;color:var(--text)}
-  .activation-item .ac-delai{font-size:.7rem;color:var(--res)}
+  .activation-item .ac-horodatage{font-size:.7rem;color:var(--text-faint)}
 
   /* --- Row 3 : Gaz --- */
   .row-gaz{flex:0 0 58px;display:flex;align-items:center;gap:14px;padding:0 18px}
@@ -153,7 +161,10 @@
 
   <header>
     <h1>Dashboard marché électricité<span class="subhead">Day-ahead, FCR &amp; réserve aFRR — France</span></h1>
-    <div class="clock" id="clock">Chargement…</div>
+    <div class="header-right">
+      <div class="clock" id="clock">Chargement…</div>
+      <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
+    </div>
   </header>
 
   <div class="error-banner" id="error-banner">
@@ -243,12 +254,12 @@
             <div class="activation-item">
               <span class="ac-label"><span class="ac-swatch" style="background:var(--hausse)"></span>Hausse</span>
               <span class="ac-value" id="act-up-dernier">—</span>
-              <span class="ac-delai" id="act-up-delai"></span>
+              <span class="ac-horodatage" id="act-up-horodatage"></span>
             </div>
             <div class="activation-item">
               <span class="ac-label"><span class="ac-swatch" style="background:var(--baisse)"></span>Baisse</span>
               <span class="ac-value" id="act-down-dernier">—</span>
-              <span class="ac-delai" id="act-down-delai"></span>
+              <span class="ac-horodatage" id="act-down-horodatage"></span>
             </div>
           </div>
         </div>
@@ -284,13 +295,34 @@
 
   function xScale(hour){ return PAD_L + (hour/24) * plotW; }
 
-  function makeYScale(series){
+  // Pas "rond" (1/2/5 x 10^n) le plus proche du pas brut vise -- evite des
+  // graduations arbitraires type 132/256 (algorithme classique type
+  // d3-array/ticks).
+  function pasRond(pasBrut){
+    const magnitude = Math.pow(10, Math.floor(Math.log10(pasBrut)));
+    const residu = pasBrut / magnitude;
+    if(residu > 5) return 10 * magnitude;
+    if(residu > 2) return 5 * magnitude;
+    if(residu > 1) return 2 * magnitude;
+    return magnitude;
+  }
+
+  function makeYScale(series, ciblesTicks){
+    ciblesTicks = ciblesTicks || 4;
     const all = series.flat().filter(v => v !== null && v !== undefined && !Number.isNaN(v));
-    if(all.length === 0) return { lo:0, hi:1, y: () => PAD_T + plotH/2 };
-    let lo = Math.min(...all), hi = Math.max(...all);
-    const span = hi - lo || 1;
-    lo -= span*0.12; hi += span*0.12;
-    return { lo, hi, y: v => PAD_T + plotH - ((v-lo)/(hi-lo))*plotH };
+    // Le zero fait toujours partie de l'echelle ("belle barre en 0", reference
+    // visuelle constante) meme si toutes les valeurs sont du meme cote.
+    let loData = all.length ? Math.min(...all, 0) : 0;
+    let hiData = all.length ? Math.max(...all, 0) : 1;
+    if(loData === hiData) hiData = loData + 1;
+
+    const pas = pasRond((hiData - loData) / ciblesTicks) || 1;
+    const lo = Math.floor(loData / pas) * pas;
+    const hi = Math.ceil(hiData / pas) * pas;
+    const ticks = [];
+    for(let v = lo; v <= hi + pas*0.5; v += pas) ticks.push(Math.round(v/pas)*pas);
+
+    return { lo, hi, ticks, y: v => PAD_T + plotH - ((v-lo)/(hi-lo))*plotH };
   }
 
   function stepValue(series, hour){
@@ -319,15 +351,17 @@
   }
 
   function gridAndAxis(svg, yScale){
-    const ticks = 4;
-    for(let i=0;i<=ticks;i++){
-      const v = yScale.lo + (yScale.hi-yScale.lo)*i/ticks;
+    yScale.ticks.forEach(v=>{
       const y = yScale.y(v);
-      svg.appendChild(svgEl("line", {class:"grid-line", x1:PAD_L, x2:W-PAD_R, y1:y.toFixed(1), y2:y.toFixed(1)}));
+      const surZero = Math.abs(v) < 1e-9;
+      svg.appendChild(svgEl("line", {
+        class: surZero ? "zero-line" : "grid-line",
+        x1:PAD_L, x2:W-PAD_R, y1:y.toFixed(1), y2:y.toFixed(1),
+      }));
       const t = svgEl("text", {class:"tick-label", x:PAD_L-6, y:(y+3).toFixed(1), "text-anchor":"end"});
-      t.textContent = v.toFixed(0);
+      t.textContent = v.toLocaleString("fr-FR");
       svg.appendChild(t);
-    }
+    });
     [0,6,12,18,23].forEach(h=>{
       const x = xScale(h);
       const t = svgEl("text", {class:"tick-label", x:x.toFixed(1), y:H-6, "text-anchor":"middle"});
@@ -477,13 +511,23 @@
     return {lowHour: iBas*0.25, lowVal: valeurBas, highHour: iPeak*0.25, highVal: valeurPeak};
   }
 
+  // Date du jour, en toutes lettres, premiere lettre en majuscule.
+  function fmtDateJour(d){
+    const s = d.toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long"});
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   function render(snap){
     const maintenant = new Date();
     const nowHour = maintenant.getHours() + maintenant.getMinutes()/60 + maintenant.getSeconds()/3600;
     const series = snap.series || {};
+    const qIdxCourant = Math.min(95, Math.floor(nowHour*4));
 
+    // Date + heure du CRENEAU affiche (pas l'heure de la derniere requete
+    // reseau) -- doit correspondre exactement au prix "courant" montre plus
+    // bas, calcule cote client depuis la meme heure locale.
     document.getElementById("clock").innerHTML =
-      `MAJ <strong>${snap.fetched_at ? fmtHeure(snap.fetched_at) : "—"}</strong> · toutes les 15 min`;
+      `${fmtDateJour(maintenant)} · <strong>${fmtHeure(debutCreneauIso(qIdxCourant))}</strong>`;
 
     // --- Day-ahead ---
     // Prix courant calcule COTE CLIENT depuis la courbe du jour deja connue
@@ -492,7 +536,6 @@
     // retard ou tourne a un instant decale par rapport au quart d'heure en
     // cours (cf. limite de precision du scheduler GitHub Actions).
     const da = remplitJournee(series.da);
-    const qIdxCourant = Math.min(95, Math.floor(nowHour*4));
     const daCourant = da[qIdxCourant];
     setText("da-courant", daCourant !== null ? `${fmt(daCourant,2)} €/MWh` : "—");
     setText("da-courant-ts", fmtCreneau(debutCreneauIso(qIdxCourant)));
@@ -506,25 +549,31 @@
     setHtml("da-peak-pill", pillHtml(snap.da_peak_ecart_pct));
 
     // --- FCR ---
-    setText("fcr-moyenne", snap.fcr_moyenne_jour !== undefined ? `${fmt(snap.fcr_moyenne_jour,2)} €/MW` : "—");
+    // Prix RTE natif en €/MW/15min (guide RTE Balancing Capacity §5.10.1.3)
+    // -- x96 (nb de quarts d'heure/jour) pour un affichage en €/MW/jour,
+    // plus lisible / comparable a un cout de reservation journalier.
+    const PAR_JOUR = 96;
+    setText("fcr-moyenne", snap.fcr_moyenne_jour !== undefined ? `${fmt(snap.fcr_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
     setHtml("fcr-moyenne-pill", pillHtml(snap.fcr_ecart_pct));
 
     // --- aFRR capacite ---
-    setText("afrr-up-moyenne", snap.afrr_up_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_up_capa_moyenne_jour,2)} €/MW/15min` : "—");
+    setText("afrr-up-moyenne", snap.afrr_up_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_up_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
     setHtml("afrr-up-moyenne-pill", pillHtml(snap.afrr_up_capa_ecart_pct));
-    setText("afrr-down-moyenne", snap.afrr_down_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_down_capa_moyenne_jour,2)} €/MW/15min` : "—");
+    setText("afrr-down-moyenne", snap.afrr_down_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_down_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
     setHtml("afrr-down-moyenne-pill", pillHtml(snap.afrr_down_capa_ecart_pct));
 
     // --- aFRR activation (corner box, compact) ---
+    // Creneau auquel correspond ce dernier prix publie, pas le delai depuis
+    // qu'il a ete lu -- l'heure du creneau est l'info utile ici.
     setText("act-up-dernier", snap.afrr_up_activation_dernier_prix !== undefined ? `${fmt(snap.afrr_up_activation_dernier_prix,1)} €/MWh` : "—");
-    setText("act-up-delai", snap.afrr_up_activation_delai_min !== undefined && snap.afrr_up_activation_delai_min !== null ? `⏳ ${Math.round(snap.afrr_up_activation_delai_min)} min` : "");
+    setText("act-up-horodatage", fmtCreneau(snap.afrr_up_activation_dernier_horodatage));
     setText("act-down-dernier", snap.afrr_down_activation_dernier_prix !== undefined ? `${fmt(snap.afrr_down_activation_dernier_prix,1)} €/MWh` : "—");
-    setText("act-down-delai", snap.afrr_down_activation_delai_min !== undefined && snap.afrr_down_activation_delai_min !== null ? `⏳ ${Math.round(snap.afrr_down_activation_delai_min)} min` : "");
+    setText("act-down-horodatage", fmtCreneau(snap.afrr_down_activation_dernier_horodatage));
 
     // --- graphes ---
-    const fcr = remplitJournee(series.fcr);
-    const afrrUp = remplitJournee(series.afrr_up_capa);
-    const afrrDown = remplitJournee(series.afrr_down_capa);
+    const fcr = remplitJournee(series.fcr).map(v => v === null ? null : v*PAR_JOUR);
+    const afrrUp = remplitJournee(series.afrr_up_capa).map(v => v === null ? null : v*PAR_JOUR);
+    const afrrDown = remplitJournee(series.afrr_down_capa).map(v => v === null ? null : v*PAR_JOUR);
 
     buildChart("chart-da", [da], {stroke:["var(--da)"], labels:["Day-ahead"]}, {
       unit:"€/MWh", area:true, now:true, nowHour,
@@ -532,11 +581,11 @@
       ariaLabel:"Profil de prix day-ahead sur la journée, pas 15 min natif",
     });
     buildChart("chart-fcr", [fcr], {stroke:["var(--fcr)"], labels:["FCR"]}, {
-      unit:"€/MW", now:true, nowHour,
+      unit:"€/MW/jour", now:true, nowHour,
       ariaLabel:"Profil de prix de capacité FCR sur la journée",
     });
     buildChart("chart-afrr", [afrrUp, afrrDown], {stroke:["var(--hausse)","var(--baisse)"], labels:["Hausse","Baisse"]}, {
-      unit:"€/MW/15min", now:true, nowHour, nowSeries:0,
+      unit:"€/MW/jour", now:true, nowHour, nowSeries:0,
       ariaLabel:"Profil de prix de capacité aFRR, hausse et baisse superposées",
     });
   }
@@ -575,6 +624,15 @@
   function retracerLocalement(){
     if(dernierSnapshot) render(dernierSnapshot);
   }
+
+  const btnFullscreen = document.getElementById("btn-fullscreen");
+  btnFullscreen.addEventListener("click", () => {
+    if(document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{});
+  });
+  document.addEventListener("fullscreenchange", () => {
+    btnFullscreen.textContent = document.fullscreenElement ? "⤫" : "⛶";
+  });
 
   chargerEtRendre();
   setInterval(chargerEtRendre, REFRESH_MS);
