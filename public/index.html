@@ -104,6 +104,7 @@
   .kpi-box .timestamp{font-size:.72rem;color:var(--text-faint)}
 
   .tick-label{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;fill:var(--text-faint)}
+  .axis-unit{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9px;font-weight:600;fill:var(--text-faint)}
   .grid-line{stroke:var(--grid);stroke-width:1}
   .axis-line{stroke:var(--line-muted);stroke-width:1}
   .zero-line{stroke:var(--text-faint);stroke-width:1.6}
@@ -424,6 +425,11 @@
     const yScale = makeYScale(series);
 
     gridAndAxis(svg, yScale);
+    if(opts.unit){
+      const t = svgEl("text", {class:"axis-unit", x:PAD_L, y:(PAD_T-2).toFixed(1), "text-anchor":"start"});
+      t.textContent = opts.unit;
+      svg.appendChild(t);
+    }
 
     series.forEach((s, idx)=>{
       const points = s.map((v,i)=>[xScale(i*0.25), v === null || v === undefined || Number.isNaN(v) ? null : yScale.y(v)]);
@@ -571,9 +577,12 @@
     setText("act-down-horodatage", fmtCreneau(snap.afrr_down_activation_dernier_horodatage));
 
     // --- graphes ---
-    const fcr = remplitJournee(series.fcr).map(v => v === null ? null : v*PAR_JOUR);
-    const afrrUp = remplitJournee(series.afrr_up_capa).map(v => v === null ? null : v*PAR_JOUR);
-    const afrrDown = remplitJournee(series.afrr_down_capa).map(v => v === null ? null : v*PAR_JOUR);
+    // Les graphes restent en unite RTE native (€/MW/15min) -- pas le x96
+    // applique aux valeurs texte ci-dessus, seulement le chiffre "moyenne du
+    // jour" a du sens en €/MW/jour, pas un profil 15 min.
+    const fcr = remplitJournee(series.fcr);
+    const afrrUp = remplitJournee(series.afrr_up_capa);
+    const afrrDown = remplitJournee(series.afrr_down_capa);
 
     buildChart("chart-da", [da], {stroke:["var(--da)"], labels:["Day-ahead"]}, {
       unit:"€/MWh", area:true, now:true, nowHour,
@@ -581,11 +590,11 @@
       ariaLabel:"Profil de prix day-ahead sur la journée, pas 15 min natif",
     });
     buildChart("chart-fcr", [fcr], {stroke:["var(--fcr)"], labels:["FCR"]}, {
-      unit:"€/MW/jour", now:true, nowHour,
+      unit:"€/MW/15min", now:true, nowHour,
       ariaLabel:"Profil de prix de capacité FCR sur la journée",
     });
     buildChart("chart-afrr", [afrrUp, afrrDown], {stroke:["var(--hausse)","var(--baisse)"], labels:["Hausse","Baisse"]}, {
-      unit:"€/MW/jour", now:true, nowHour, nowSeries:0,
+      unit:"€/MW/15min", now:true, nowHour, nowSeries:0,
       ariaLabel:"Profil de prix de capacité aFRR, hausse et baisse superposées",
     });
   }
