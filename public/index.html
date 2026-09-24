@@ -161,7 +161,17 @@
      volontairement non-rectangulaire) -- cf. echange utilisateur. Le fond de
      la carte disparait dans l'encoche, laissant voir le fond de la page
      (meme bleu NovaWatt que l'arriere-plan du logo -- fusion visuelle). */
-  .mfrr-card{position:relative;clip-path:polygon(0 0, 100% 0, 100% calc(100% - 92px), calc(100% - 130px) calc(100% - 92px), calc(100% - 130px) 100%, 0 100%)}
+  /* Le clip-path decoupe le FOND (pseudo-element ::before, derriere le
+     contenu), pas la carte elle-meme -- sinon le logo, enfant de la carte et
+     positionne dans la zone decoupee, serait lui aussi clippe/invisible (le
+     clip-path sur un element affecte aussi tout son contenu). */
+  .mfrr-card{position:relative;isolation:isolate;background:transparent;border-color:transparent;box-shadow:none}
+  .mfrr-card::before{
+    content:"";position:absolute;inset:0;z-index:-1;
+    background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--mfrr);
+    border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.18);
+    clip-path:polygon(0 0, 100% 0, 100% calc(100% - 92px), calc(100% - 130px) calc(100% - 92px), calc(100% - 130px) 100%, 0 100%);
+  }
   .mfrr-prices{display:flex;flex-direction:column;gap:8px;margin-top:8px;max-width:calc(100% - 140px)}
   .logo-novawatt-notch{position:absolute;right:14px;bottom:12px;height:82px;width:auto}
 
