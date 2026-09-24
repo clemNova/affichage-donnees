@@ -30,7 +30,7 @@
     --text-dim:#c7d4ee;
     --text-faint:#9ab0dd;
     --text-faint-2:#7f98cc;
-    --da:var(--novawatt-bleu-technique);
+    --da:var(--novawatt-vert);
     --fcr:var(--novawatt-vert);
     --res:var(--novawatt-orange);
     --mfrr:var(--novawatt-violet);
@@ -58,7 +58,6 @@
   h1{font-family:var(--font-titres);font-size:1.9rem;font-weight:700;letter-spacing:-0.01em;margin:0}
   h1 .subhead{font-family:var(--font-corps);color:var(--text-dim);font-weight:400;font-size:.85rem;margin-left:10px}
   .header-right{display:flex;align-items:center;gap:16px}
-  .logo-novawatt{height:34px;width:auto;display:block}
   .btn-fullscreen{
     flex:none;align-self:center;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
     background:var(--panel-2);border:1px solid var(--line-muted);border-radius:6px;color:var(--text-dim);
@@ -100,8 +99,6 @@
   .da-chart-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px}
   .chart-wrap{position:relative;flex:1;min-height:0}
   .chart-wrap svg{display:block;width:100%;height:100%}
-  .chart-note{font-size:.68rem;color:var(--text-faint);margin-top:4px;flex:0 0 auto}
-  .chart-note.mfrr-note{color:color-mix(in srgb, var(--mfrr) 75%, var(--text-faint))}
 
   .extremes-row{display:flex;gap:10px;margin-top:8px;flex:0 0 auto}
   .extreme-badge{flex:1;display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line-muted);border-radius:8px;padding:7px 12px}
@@ -139,9 +136,9 @@
   }
   .crosshair-tip .k{color:var(--text-faint)}
 
-  .pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-corps);font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:999px;line-height:1.5;white-space:nowrap}
+  .pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-corps);font-size:.72rem;font-weight:800;padding:2px 7px;border-radius:999px;line-height:1.5;white-space:nowrap}
   .pill.up{color:var(--pos);background:color-mix(in srgb, var(--pos) 16%, transparent)}
-  .pill.down{color:var(--neg);background:color-mix(in srgb, var(--neg) 16%, transparent)}
+  .pill.down{color:var(--res);background:color-mix(in srgb, var(--res) 16%, transparent)}
   .pill-cap{font-size:.64rem;color:var(--text-faint);font-weight:500;margin-left:2px}
 
   /* --- Row 2 : Reserves --- */
@@ -159,11 +156,14 @@
   /* Prix d'activation aFRR -- fusionne sous les prix de capacite, meme carte */
   .reserves-stats.activation-inline{margin-top:6px}
 
-  /* mFRR : prix hausse/baisse empiles a gauche, logo NovaWatt en grand a
-     droite -- liberait l'espace du header pour le logo, cf. echange utilisateur */
-  .mfrr-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-top:8px;flex:0 0 auto}
-  .mfrr-prices{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
-  .logo-novawatt-big{height:64px;width:auto;flex:none}
+  /* mFRR : prix hausse/baisse empiles a gauche ; logo NovaWatt sorti du flux
+     normal, dans une encoche decoupee au coin bas-droit de la carte (carte
+     volontairement non-rectangulaire) -- cf. echange utilisateur. Le fond de
+     la carte disparait dans l'encoche, laissant voir le fond de la page
+     (meme bleu NovaWatt que l'arriere-plan du logo -- fusion visuelle). */
+  .mfrr-card{position:relative;clip-path:polygon(0 0, 100% 0, 100% calc(100% - 92px), calc(100% - 130px) calc(100% - 92px), calc(100% - 130px) 100%, 0 100%)}
+  .mfrr-prices{display:flex;flex-direction:column;gap:8px;margin-top:8px;max-width:calc(100% - 140px)}
+  .logo-novawatt-notch{position:absolute;right:14px;bottom:12px;height:82px;width:auto}
 
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
@@ -264,7 +264,7 @@
         </div>
 
         <div class="card accent-res reserves-col">
-          <span class="section-title"><em>aFRR — capacité</em></span>
+          <span class="section-title"><em>aFRR</em></span>
           <div class="chart-wrap" id="chart-afrr"></div>
           <div class="legend">
             <span class="legend-item"><span class="legend-swatch" style="background:var(--hausse)"></span>Hausse</span>
@@ -294,23 +294,20 @@
           </div>
         </div>
 
-        <div class="card accent-mfrr reserves-col">
-          <span class="section-title"><em>mFRR — capacité</em></span>
+        <div class="card accent-mfrr reserves-col mfrr-card">
+          <span class="section-title"><em>mFRR</em></span>
           <div class="chart-wrap" id="chart-mfrr"></div>
-          <div class="chart-note mfrr-note">Disponible depuis le 20/10/2025 (API RTE récente) — prix d'activation pas encore publié par RTE (prévu mi-2026)</div>
-          <div class="mfrr-footer">
-            <div class="mfrr-prices">
-              <div class="mini-box">
-                <span class="mini-label"><span class="mini-swatch" style="background:var(--hausse)"></span>Hausse — moy. jour</span>
-                <span class="mini-value" id="mfrr-up-moyenne">—<span id="mfrr-up-moyenne-pill"></span></span>
-              </div>
-              <div class="mini-box">
-                <span class="mini-label"><span class="mini-swatch" style="background:var(--baisse)"></span>Baisse — moy. jour</span>
-                <span class="mini-value" id="mfrr-down-moyenne">—<span id="mfrr-down-moyenne-pill"></span></span>
-              </div>
+          <div class="mfrr-prices">
+            <div class="mini-box">
+              <span class="mini-label"><span class="mini-swatch" style="background:var(--hausse)"></span>Hausse — moy. jour</span>
+              <span class="mini-value" id="mfrr-up-moyenne">—<span id="mfrr-up-moyenne-pill"></span></span>
             </div>
-            <img class="logo-novawatt logo-novawatt-big" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
+            <div class="mini-box">
+              <span class="mini-label"><span class="mini-swatch" style="background:var(--baisse)"></span>Baisse — moy. jour</span>
+              <span class="mini-value" id="mfrr-down-moyenne">—<span id="mfrr-down-moyenne-pill"></span></span>
+            </div>
           </div>
+          <img class="logo-novawatt-notch" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
         </div>
       </div>
     </section>
@@ -598,7 +595,7 @@
     setText("da-courant", daCourant !== null ? `${fmt(daCourant,2)} €/MWh` : "—");
     setText("da-courant-ts", fmtCreneau(debutCreneauIso(qIdxCourant)));
     setText("da-moyenne", snap.da_moyenne_jour !== undefined ? `${fmt(snap.da_moyenne_jour,2)} €/MWh` : "—");
-    setHtml("da-moyenne-pill", pillHtml(snap.da_ecart_pct, "vs veille"));
+    setHtml("da-moyenne-pill", pillHtml(snap.da_ecart_pct, "vs J-1"));
     setText("da-tb2", snap.da_tb2 !== undefined ? `${fmt(snap.da_tb2,2)} €/MWh` : "—");
     setHtml("da-tb2-pill", pillHtml(snap.da_tb2_ecart_pct, "vs 7j"));
     setText("da-tb4", snap.da_tb4 !== undefined ? `${fmt(snap.da_tb4,2)} €/MWh` : "—");
@@ -606,9 +603,9 @@
     // Base du jour = prix Base convention EPEX (moyenne 24h) = exactement
     // da_moyenne_jour / da_ecart_pct -- pas de champ dedie, cf. calc.py.
     setText("da-base", snap.da_moyenne_jour !== undefined ? `${fmt(snap.da_moyenne_jour,2)} €/MWh` : "—");
-    setHtml("da-base-pill", pillHtml(snap.da_ecart_pct, "vs veille"));
+    setHtml("da-base-pill", pillHtml(snap.da_ecart_pct, "vs J-1"));
     setText("da-peak", snap.da_peak_jour !== undefined ? `${fmt(snap.da_peak_jour,2)} €/MWh` : "—");
-    setHtml("da-peak-pill", pillHtml(snap.da_peak_ecart_pct, "vs veille"));
+    setHtml("da-peak-pill", pillHtml(snap.da_peak_ecart_pct, "vs J-1"));
 
     // --- FCR / aFRR capacite : compares au meme mois l'annee precedente
     // (cf. store._valeur_mois_an_dernier), pas a une moyenne glissante 30j.
