@@ -19,17 +19,17 @@
     --novawatt-rouge:#C0392B;
     --novawatt-violet:#6B3FA0;
 
-    --bg:#0a1730;
-    --panel:#142c56;
-    --panel-2:#0f2244;
-    --panel-muted:#11213f;
-    --line:#2b4876;
-    --line-muted:#1e3760;
-    --grid:#223a63;
-    --text:#f2f5fa;
-    --text-dim:#a7b8d6;
-    --text-faint:#7189b3;
-    --text-faint-2:#536a94;
+    --bg:#1E3872;
+    --panel:#2a4a89;
+    --panel-2:#193668;
+    --panel-muted:#1d3b70;
+    --line:#3f5fa0;
+    --line-muted:#2f4d85;
+    --grid:#345792;
+    --text:#ffffff;
+    --text-dim:#c7d4ee;
+    --text-faint:#9ab0dd;
+    --text-faint-2:#7f98cc;
     --da:var(--novawatt-bleu-technique);
     --fcr:var(--novawatt-vert);
     --res:var(--novawatt-orange);
@@ -101,24 +101,20 @@
   .chart-wrap{position:relative;flex:1;min-height:0}
   .chart-wrap svg{display:block;width:100%;height:100%}
   .chart-note{font-size:.68rem;color:var(--text-faint);margin-top:4px;flex:0 0 auto}
-  .chart-note.da-note{color:color-mix(in srgb, var(--da) 75%, var(--text-faint))}
   .chart-note.mfrr-note{color:color-mix(in srgb, var(--mfrr) 75%, var(--text-faint))}
 
   .extremes-row{display:flex;gap:10px;margin-top:8px;flex:0 0 auto}
   .extreme-badge{flex:1;display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line-muted);border-radius:8px;padding:7px 12px}
-  .extreme-badge .eb-label{font-family:var(--font-titres);font-size:.72rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em}
+  .extreme-badge .eb-label{font-family:var(--font-titres);font-size:.72rem;color:var(--text);text-transform:uppercase;letter-spacing:.05em}
   .extreme-badge .eb-value{font-family:var(--font-corps);font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums}
-  .extreme-badge.base .eb-label{color:var(--novawatt-bleu-clair)}
-  .extreme-badge.peak .eb-label{color:var(--res)}
-  .extreme-badge.min-jour .eb-label{color:var(--pos)}
-  .extreme-badge.max-jour .eb-label{color:var(--neg)}
 
   .da-side-col{flex:0 0 400px;display:flex;flex-direction:column;gap:10px}
   .kpi-box{flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:12px 16px}
   .kpi-box .kpi-label{font-family:var(--font-titres);font-size:.75rem;color:var(--text-faint);letter-spacing:.02em}
   .kpi-box .kpi-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .kpi-box .kpi-value{font-family:var(--font-corps);font-weight:700;font-size:2rem;font-variant-numeric:tabular-nums}
-  .kpi-box.emphase .kpi-value{font-size:2.6rem;color:var(--novawatt-bleu-clair)}
+  .kpi-box.emphase .kpi-label{font-size:.95rem;font-weight:700;color:var(--text)}
+  .kpi-box.emphase .kpi-value{font-size:2.4rem;color:var(--text)}
   .kpi-box .timestamp{font-size:.72rem;color:var(--text-faint)}
 
   .tb-row{display:flex;gap:12px}
@@ -163,6 +159,12 @@
   /* Prix d'activation aFRR -- fusionne sous les prix de capacite, meme carte */
   .reserves-stats.activation-inline{margin-top:6px}
 
+  /* mFRR : prix hausse/baisse empiles a gauche, logo NovaWatt en grand a
+     droite -- liberait l'espace du header pour le logo, cf. echange utilisateur */
+  .mfrr-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-top:8px;flex:0 0 auto}
+  .mfrr-prices{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .logo-novawatt-big{height:64px;width:auto;flex:none}
+
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
     .row-da,.reserves-body{flex-direction:column}
@@ -176,7 +178,6 @@
   <header>
     <h1>Dashboard BESS<span class="subhead">Day-ahead, FCR, aFRR &amp; mFRR — France</span></h1>
     <div class="header-right">
-      <img class="logo-novawatt" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
       <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
     </div>
   </header>
@@ -198,7 +199,6 @@
           <div class="clock-big" id="clock">Chargement…</div>
         </div>
         <div class="chart-wrap" id="chart-da"></div>
-        <div class="chart-note da-note">Point plein = curseur sur le quart d'heure en cours — courbe déjà connue, pas une nouvelle mesure temps réel</div>
         <div class="extremes-row">
           <div class="extreme-badge base">
             <span class="eb-label">Base du jour</span>
@@ -229,7 +229,7 @@
           <div class="kpi-meta"><span class="kpi-value" id="da-courant">—</span></div>
           <span class="timestamp" id="da-courant-ts"></span>
         </div>
-        <div class="card kpi-box">
+        <div class="card kpi-box emphase">
           <span class="kpi-label">Prix moyen du jour</span>
           <div class="kpi-meta"><span class="kpi-value" id="da-moyenne">—</span><span id="da-moyenne-pill"></span></div>
         </div>
@@ -298,15 +298,18 @@
           <span class="section-title"><em>mFRR — capacité</em></span>
           <div class="chart-wrap" id="chart-mfrr"></div>
           <div class="chart-note mfrr-note">Disponible depuis le 20/10/2025 (API RTE récente) — prix d'activation pas encore publié par RTE (prévu mi-2026)</div>
-          <div class="reserves-stats">
-            <div class="mini-box">
-              <span class="mini-label"><span class="mini-swatch" style="background:var(--hausse)"></span>Hausse — moy. jour</span>
-              <span class="mini-value" id="mfrr-up-moyenne">—<span id="mfrr-up-moyenne-pill"></span></span>
+          <div class="mfrr-footer">
+            <div class="mfrr-prices">
+              <div class="mini-box">
+                <span class="mini-label"><span class="mini-swatch" style="background:var(--hausse)"></span>Hausse — moy. jour</span>
+                <span class="mini-value" id="mfrr-up-moyenne">—<span id="mfrr-up-moyenne-pill"></span></span>
+              </div>
+              <div class="mini-box">
+                <span class="mini-label"><span class="mini-swatch" style="background:var(--baisse)"></span>Baisse — moy. jour</span>
+                <span class="mini-value" id="mfrr-down-moyenne">—<span id="mfrr-down-moyenne-pill"></span></span>
+              </div>
             </div>
-            <div class="mini-box">
-              <span class="mini-label"><span class="mini-swatch" style="background:var(--baisse)"></span>Baisse — moy. jour</span>
-              <span class="mini-value" id="mfrr-down-moyenne">—<span id="mfrr-down-moyenne-pill"></span></span>
-            </div>
+            <img class="logo-novawatt logo-novawatt-big" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
           </div>
         </div>
       </div>

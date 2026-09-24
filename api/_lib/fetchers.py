@@ -52,17 +52,18 @@ def fetch_fcr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list
 
 
 def _fetch_capacite_reserve(
-    date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE, reserve: str
+    date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE, correspond
 ) -> dict[str, list[dict]]:
     """Prix de capacite (EUR/MW/15min, cf. guide RTE Balancing Capacity
-    §5.10.1.3), par sens, pour une reserve donnee. Renvoie {"UP": [...], "DOWN": [...]}."""
+    §5.10.1.3), par sens, pour les blocs dont le champ `reserve` verifie le
+    predicat `correspond`. Renvoie {"UP": [...], "DOWN": [...]}."""
     url = "https://digital.iservices.rte-france.com/open_api/balancing_capacity/v5/result_procured_reserves"
     reponse = appelle_api_rte(url, identifiants, params={
         "start_date": date_debut.isoformat(), "end_date": date_fin.isoformat(),
     })
     resultat: dict[str, list[dict]] = {"UP": [], "DOWN": []}
     for bloc in reponse.get("result_procured_reserves", []):
-        if bloc.get("reserve") != reserve:
+        if not correspond(str(bloc.get("reserve") or "")):
             continue
         for valeur in bloc.get("values", []):
             direction = valeur.get("direction")
@@ -74,16 +75,19 @@ def _fetch_capacite_reserve(
 
 def fetch_afrr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE) -> dict[str, list[dict]]:
     """Prix de capacite aFRR, par sens. Renvoie {"UP": [...], "DOWN": [...]}."""
-    return _fetch_capacite_reserve(date_debut, date_fin, identifiants, "AFRR")
+    return _fetch_capacite_reserve(date_debut, date_fin, identifiants, lambda r: r.upper() == "AFRR")
 
 
 def fetch_mfrr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE) -> dict[str, list[dict]]:
     """Prix de capacite mFRR/RR, par sens. Meme ressource RTE que aFRR (v5),
     disponible seulement depuis le 20/10/2025 (doc RTE "FCR, aFRR et mFRR/RR
-    capacity"). Valeur du champ `reserve` = "MFRR" supposee ici -- A VERIFIER
-    empiriquement en prod (reponse vide silencieuse si le libelle RTE reel
-    differe, cf. filtre dans _fetch_capacite_reserve)."""
-    return _fetch_capacite_reserve(date_debut, date_fin, identifiants, "MFRR")
+    capacity"). Filtre volontairement PERMISSIF (toute valeur de `reserve`
+    contenant "MFRR", insensible a la casse -- couvre "MFRR", "MFRR-RR", etc.)
+    plutot qu'une egalite stricte : la valeur exacte du libelle RTE n'a pas pu
+    etre verifiee empiriquement (pas d'identifiants RTE disponibles pour
+    tester), ce filtre reduit le risque de reponse vide par simple erreur
+    d'orthographe. Ne peut pas matcher "AFRR" par erreur (ne contient pas "M")."""
+    return _fetch_capacite_reserve(date_debut, date_fin, identifiants, lambda r: "MFRR" in r.upper())
 
 
 def _valeur_ou_nan(v) -> float:
