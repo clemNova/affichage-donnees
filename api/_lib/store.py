@@ -188,11 +188,12 @@ def calcule_et_sauvegarde_snapshot() -> dict:
             hist_tb2 = pd.Series({pd.Timestamp(d): v["tb2"] for d, v in hist_da.items() if "tb2" in v})
             hist_tb4 = pd.Series({pd.Timestamp(d): v["tb4"] for d, v in hist_da.items() if "tb4" in v})
             hist_peak = pd.Series({pd.Timestamp(d): v["peak"] for d, v in hist_da.items() if "peak" in v})
-            # TB2/TB4 compares a 7j (spreads plus volatils qu'un prix moyen),
-            # Peak reste compare a 30j -- cf. echange utilisateur.
+            # TB2/TB4 compares a 7j (spreads plus volatils qu'un prix moyen).
+            # Peak compare a la veille (comme Base/Prix moyen du jour) --
+            # cf. echange utilisateur.
             tb2_ref = calc.moyenne_nj_glissante(hist_tb2, jour, 7) if len(hist_tb2) else float("nan")
             tb4_ref = calc.moyenne_nj_glissante(hist_tb4, jour, 7) if len(hist_tb4) else float("nan")
-            peak_ref = calc.moyenne_nj_glissante(hist_peak, jour, 30) if len(hist_peak) else float("nan")
+            peak_ref = calc.valeur_veille(hist_peak, jour)
             ligne["da_tb2"] = tb2
             ligne["da_tb2_ecart_pct"] = calc.ecart_pct(tb2, tb2_ref)
             ligne["da_tb4"] = tb4

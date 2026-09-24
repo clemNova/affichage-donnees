@@ -27,19 +27,22 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "api
 import backfill
 import cron_15min
 import cron_daily
+import importer_historique_mensuel
 from _lib import kv
 from _lib.auth import autorise
 from _lib.http_utils import refuser, repondre
 
 # Endpoints proteges par CRON_SECRET -- declenchent de vrais appels RTE/
-# ENTSO-E (quota limite). /api/backfill_historique n'est PAS ajoute au
-# declencheur planifie GitHub Actions (cf. .github/workflows/cron.yml) :
-# c'est une operation ponctuelle (remplir hist:<domaine> d'un coup au lieu
-# d'attendre 35 jours), a appeler manuellement.
+# ENTSO-E (quota limite) ou des ecritures KV ponctuelles. Ni
+# /api/backfill_historique ni /api/importer_historique_mensuel ne sont
+# ajoutes au declencheur planifie GitHub Actions (cf.
+# .github/workflows/cron.yml) : ce sont des operations ponctuelles (remplir
+# hist:<domaine>/hist_mensuel:<domaine> d'un coup), a appeler manuellement.
 MODULES_PROTEGES = {
     "/api/cron_daily": cron_daily,
     "/api/cron_15min": cron_15min,
     "/api/backfill_historique": backfill,
+    "/api/importer_historique_mensuel": importer_historique_mensuel,
 }
 
 

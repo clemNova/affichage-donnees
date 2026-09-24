@@ -57,9 +57,8 @@
   header{display:flex;align-items:baseline;justify-content:space-between;gap:12px 24px;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:14px;flex:0 0 auto}
   h1{font-family:var(--font-titres);font-size:1.9rem;font-weight:700;letter-spacing:-0.01em;margin:0}
   h1 .subhead{font-family:var(--font-corps);color:var(--text-dim);font-weight:400;font-size:.85rem;margin-left:10px}
-  .header-right{display:flex;align-items:baseline;gap:12px}
-  .clock{font-family:var(--font-corps);font-size:.85rem;color:var(--text-dim);text-align:right}
-  .clock strong{color:var(--text);font-weight:600}
+  .header-right{display:flex;align-items:center;gap:16px}
+  .logo-novawatt{height:34px;width:auto;display:block}
   .btn-fullscreen{
     flex:none;align-self:center;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
     background:var(--panel-2);border:1px solid var(--line-muted);border-radius:6px;color:var(--text-dim);
@@ -87,7 +86,8 @@
   .dot.mfrr{background:var(--mfrr);box-shadow:0 0 10px color-mix(in srgb, var(--mfrr) 70%, transparent)}
   .section-title{font-family:var(--font-titres);font-size:1.05rem;font-weight:500;letter-spacing:.01em;color:var(--text-dim)}
   .section-title em{font-style:normal;font-weight:700;color:var(--text)}
-  .section-title-date{font-family:var(--font-corps);font-size:.78rem;color:var(--text-faint);margin-left:8px;font-weight:400}
+  .clock-big{font-family:var(--font-corps);font-size:1.4rem;font-weight:700;color:var(--text);text-align:right}
+  .clock-big strong{color:var(--novawatt-bleu-clair)}
 
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;box-shadow:0 2px 10px rgba(0,0,0,.18)}
   .card.accent-da{border-top:3px solid var(--da)}
@@ -102,7 +102,6 @@
   .chart-wrap svg{display:block;width:100%;height:100%}
   .chart-note{font-size:.68rem;color:var(--text-faint);margin-top:4px;flex:0 0 auto}
   .chart-note.da-note{color:color-mix(in srgb, var(--da) 75%, var(--text-faint))}
-  .chart-note.fcr-note{color:color-mix(in srgb, var(--fcr) 75%, var(--text-faint))}
   .chart-note.mfrr-note{color:color-mix(in srgb, var(--mfrr) 75%, var(--text-faint))}
 
   .extremes-row{display:flex;gap:10px;margin-top:8px;flex:0 0 auto}
@@ -111,12 +110,15 @@
   .extreme-badge .eb-value{font-family:var(--font-corps);font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums}
   .extreme-badge.base .eb-label{color:var(--novawatt-bleu-clair)}
   .extreme-badge.peak .eb-label{color:var(--res)}
+  .extreme-badge.min-jour .eb-label{color:var(--pos)}
+  .extreme-badge.max-jour .eb-label{color:var(--neg)}
 
   .da-side-col{flex:0 0 400px;display:flex;flex-direction:column;gap:10px}
   .kpi-box{flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:12px 16px}
   .kpi-box .kpi-label{font-family:var(--font-titres);font-size:.75rem;color:var(--text-faint);letter-spacing:.02em}
   .kpi-box .kpi-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .kpi-box .kpi-value{font-family:var(--font-corps);font-weight:700;font-size:2rem;font-variant-numeric:tabular-nums}
+  .kpi-box.emphase .kpi-value{font-size:2.6rem;color:var(--novawatt-bleu-clair)}
   .kpi-box .timestamp{font-size:.72rem;color:var(--text-faint)}
 
   .tb-row{display:flex;gap:12px}
@@ -156,15 +158,10 @@
   .mini-box .mini-label{font-family:var(--font-titres);font-size:.7rem;color:var(--text-faint);display:flex;align-items:center;gap:5px}
   .mini-box .mini-swatch{display:inline-block;width:7px;height:7px;border-radius:50%}
   .mini-box .mini-value{font-family:var(--font-corps);font-weight:700;font-size:1.15rem;display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+  .mini-box .mini-sub{font-size:.65rem;color:var(--text-faint)}
 
-  /* Prix d'activation -- colonne a droite des courbes de capacite (FCR/aFRR) */
-  .activation-col-wrap{flex:0 0 230px;display:flex;flex-direction:column;padding:14px 16px;gap:10px}
-  .activation-stack{flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px}
-  .activation-item{display:flex;flex-direction:column;gap:4px}
-  .activation-item .ac-label{font-family:var(--font-titres);font-size:.7rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
-  .activation-item .ac-swatch{display:inline-block;width:8px;height:8px;border-radius:50%}
-  .activation-item .ac-value{font-family:var(--font-corps);font-weight:700;font-size:1.4rem;color:var(--text);font-variant-numeric:tabular-nums}
-  .activation-item .ac-horodatage{font-size:.7rem;color:var(--text-faint)}
+  /* Prix d'activation aFRR -- fusionne sous les prix de capacite, meme carte */
+  .reserves-stats.activation-inline{margin-top:6px}
 
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
@@ -177,9 +174,9 @@
 <body>
 
   <header>
-    <h1>Dashboard marché électricité<span class="subhead">Day-ahead, FCR, aFRR &amp; mFRR — France</span></h1>
+    <h1>Dashboard BESS<span class="subhead">Day-ahead, FCR, aFRR &amp; mFRR — France</span></h1>
     <div class="header-right">
-      <div class="clock" id="clock">Chargement…</div>
+      <img class="logo-novawatt" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
       <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
     </div>
   </header>
@@ -196,8 +193,9 @@
         <div class="section-head">
           <div class="section-head-left">
             <span class="dot da"></span>
-            <span class="section-title"><em>Day-ahead</em> — EPEX, publié la veille<span class="section-title-date" id="da-chart-date"></span></span>
+            <span class="section-title"><em>Day-ahead</em> — EPEX, publié la veille</span>
           </div>
+          <div class="clock-big" id="clock">Chargement…</div>
         </div>
         <div class="chart-wrap" id="chart-da"></div>
         <div class="chart-note da-note">Point plein = curseur sur le quart d'heure en cours — courbe déjà connue, pas une nouvelle mesure temps réel</div>
@@ -213,10 +211,20 @@
             <span id="da-peak-pill"></span>
           </div>
         </div>
+        <div class="extremes-row">
+          <div class="extreme-badge min-jour">
+            <span class="eb-label">Min journée</span>
+            <span class="eb-value" id="da-min">—</span>
+          </div>
+          <div class="extreme-badge max-jour">
+            <span class="eb-label">Max journée</span>
+            <span class="eb-value" id="da-max">—</span>
+          </div>
+        </div>
       </div>
 
       <div class="da-side-col">
-        <div class="card kpi-box">
+        <div class="card kpi-box emphase">
           <span class="kpi-label">Prix courant</span>
           <div class="kpi-meta"><span class="kpi-value" id="da-courant">—</span></div>
           <span class="timestamp" id="da-courant-ts"></span>
@@ -226,7 +234,6 @@
           <div class="kpi-meta"><span class="kpi-value" id="da-moyenne">—</span><span id="da-moyenne-pill"></span></div>
         </div>
         <div class="card kpi-box">
-          <span class="kpi-label">TB — spread horaire</span>
           <div class="tb-row">
             <div class="tb-item">
               <span class="tb-item-label">TB2 (2h)</span>
@@ -248,7 +255,6 @@
         <div class="card accent-fcr reserves-col">
           <span class="section-title"><em>FCR</em></span>
           <div class="chart-wrap" id="chart-fcr"></div>
-          <div class="chart-note fcr-note">Allocation par créneaux de plusieurs heures — chaque palier reste constant jusqu'au prochain changement</div>
           <div class="reserves-stats">
             <div class="mini-box">
               <span class="mini-label">Prix de capacité moyen du jour</span>
@@ -274,20 +280,16 @@
               <span class="mini-value" id="afrr-down-moyenne">—<span id="afrr-down-moyenne-pill"></span></span>
             </div>
           </div>
-        </div>
-
-        <div class="card accent-res activation-col-wrap">
-          <span class="section-title"><em>Prix d'activation</em></span>
-          <div class="activation-stack">
-            <div class="activation-item">
-              <span class="ac-label"><span class="ac-swatch" style="background:var(--hausse)"></span>Hausse</span>
-              <span class="ac-value" id="act-up-dernier">—</span>
-              <span class="ac-horodatage" id="act-up-horodatage"></span>
+          <div class="reserves-stats activation-inline">
+            <div class="mini-box">
+              <span class="mini-label"><span class="mini-swatch" style="background:var(--hausse)"></span>Hausse — activation</span>
+              <span class="mini-value" id="act-up-dernier">—</span>
+              <span class="mini-sub" id="act-up-horodatage"></span>
             </div>
-            <div class="activation-item">
-              <span class="ac-label"><span class="ac-swatch" style="background:var(--baisse)"></span>Baisse</span>
-              <span class="ac-value" id="act-down-dernier">—</span>
-              <span class="ac-horodatage" id="act-down-horodatage"></span>
+            <div class="mini-box">
+              <span class="mini-label"><span class="mini-swatch" style="background:var(--baisse)"></span>Baisse — activation</span>
+              <span class="mini-value" id="act-down-dernier">—</span>
+              <span class="mini-sub" id="act-down-horodatage"></span>
             </div>
           </div>
         </div>
@@ -576,7 +578,6 @@
     // bas, calcule cote client depuis la meme heure locale.
     document.getElementById("clock").innerHTML =
       `${fmtDateJour(maintenant)} · <strong>${fmtHeure(debutCreneauIso(qIdxCourant))}</strong>`;
-    setText("da-chart-date", `· ${fmtDateJour(maintenant)}`);
 
     // --- Day-ahead ---
     // Prix courant calcule COTE CLIENT depuis la courbe du jour deja connue
@@ -585,6 +586,11 @@
     // retard ou tourne a un instant decale par rapport au quart d'heure en
     // cours (cf. limite de precision du scheduler GitHub Actions).
     const da = remplitJournee(series.da);
+    // Min/Max litteraux du jour (badges + points sur la courbe) calcules une
+    // seule fois et reutilises pour les deux usages.
+    const extremesDa = extremesLocaux(da);
+    setText("da-min", extremesDa.lowVal !== null ? `${fmt(extremesDa.lowVal,2)} €/MWh` : "—");
+    setText("da-max", extremesDa.highVal !== null ? `${fmt(extremesDa.highVal,2)} €/MWh` : "—");
     const daCourant = da[qIdxCourant];
     setText("da-courant", daCourant !== null ? `${fmt(daCourant,2)} €/MWh` : "—");
     setText("da-courant-ts", fmtCreneau(debutCreneauIso(qIdxCourant)));
@@ -599,7 +605,7 @@
     setText("da-base", snap.da_moyenne_jour !== undefined ? `${fmt(snap.da_moyenne_jour,2)} €/MWh` : "—");
     setHtml("da-base-pill", pillHtml(snap.da_ecart_pct, "vs veille"));
     setText("da-peak", snap.da_peak_jour !== undefined ? `${fmt(snap.da_peak_jour,2)} €/MWh` : "—");
-    setHtml("da-peak-pill", pillHtml(snap.da_peak_ecart_pct, "vs 30j"));
+    setHtml("da-peak-pill", pillHtml(snap.da_peak_ecart_pct, "vs veille"));
 
     // --- FCR / aFRR capacite : compares au meme mois l'annee precedente
     // (cf. store._valeur_mois_an_dernier), pas a une moyenne glissante 30j.
@@ -643,7 +649,7 @@
 
     buildChart("chart-da", [da], {stroke:["var(--da)"], labels:["Day-ahead"]}, {
       unit:"€/MWh", area:true, now:true, nowHour,
-      extremes: extremesLocaux(da),
+      extremes: extremesDa,
       ariaLabel:"Profil de prix day-ahead sur la journée, pas 15 min natif",
     });
     buildChart("chart-fcr", [fcr], {stroke:["var(--fcr)"], labels:["FCR"]}, {

@@ -24,6 +24,9 @@ app.py               point d'entree Python unique -- route lui-meme /api/kpis,
 api/
     cron_daily.py     logique (executer()) — fetch day-ahead + FCR + capacité aFRR + capacité mFRR (1x/jour)
     cron_15min.py     logique (executer()) — fetch activation aFRR + calcule le snapshot KPI (15 min)
+    backfill.py         remplit hist:<domaine> (35j) depuis RTE/ENTSO-E, appel manuel unique
+    importer_historique_mensuel.py  remplit hist_mensuel:<domaine> (comparaison
+                     "vs même mois année précédente" FCR/aFRR) depuis data/*.csv, appel manuel unique
     _lib/
         http_utils.py    helpers de reponse HTTP (JSON/CORS, refus 401) utilises par app.py
         auth.py         verrou d'accès des endpoints cron (fermé par défaut, cf. section 4)
@@ -33,6 +36,12 @@ api/
         rte_client.py       client OAuth2 RTE
         entsoe_client.py     wrapper entsoe-py
         fetchers.py            appels RTE/ENTSO-E (fenêtres courtes, sans cache disque)
+data/
+    gains_capacitaires_journalier.csv  historique long (2021-2026) des gains
+                     journaliers FCR/aFRR/mFRR d'un actif de référence 1 MW,
+                     fourni par l'utilisateur — sert de proxy au prix de
+                     capacité €/MW/jour faute d'historique aussi long côté
+                     RTE Open Data (cf. `importer_historique_mensuel.py`)
 public/
     index.html         la page TV — fetch /api/kpis toutes les 60s, aucune donnée en dur
 .github/workflows/
@@ -81,13 +90,14 @@ disque. Clés utilisées :
   jours, alimenté par `cron_daily` à chaque bascule de journée — base des
   comparaisons glissantes (30j par défaut, 7j pour TB2/TB4, veille pour `da`,
   cf. section Indicateurs).
-- `hist_mensuel:<domaine>` (fcr, afrr_up_capa, afrr_down_capa) — moyennes
-  **mensuelles**, stockage **permanent** (jamais purgé, contrairement à
-  `hist:<domaine>`) : `{"YYYY-MM": moyenne}`. Alimente la comparaison "vs
-  même mois l'année précédente" de FCR/aFRR capacité — RTE Open Data
-  n'exposant pas un historique aussi long via l'API, cette clé doit être
-  peuplée séparément (import manuel à construire une fois le fichier
-  d'historique fourni par l'utilisateur — pas encore automatisé).
+- `hist_mensuel:<domaine>` (fcr, afrr_up_capa, afrr_down_capa, mfrr_up_capa,
+  mfrr_down_capa) — moyennes **mensuelles**, stockage **permanent** (jamais
+  purgé, contrairement à `hist:<domaine>`) : `{"YYYY-MM": moyenne}`. Alimente
+  la comparaison "vs même mois l'année précédente" de FCR/aFRR capacité — RTE
+  Open Data n'exposant pas un historique aussi long via l'API, cette clé est
+  peuplée depuis `data/gains_capacitaires_journalier.csv` (gains journaliers
+  d'un actif de référence 1 MW, utilisés comme proxy du prix €/MW/jour) via
+  `/api/importer_historique_mensuel` (cf. section 5.1).
 - `kpis:latest` — le snapshot complet lu par `/api/kpis` (et donc par la page).
 
 ## Indicateurs
@@ -111,12 +121,13 @@ les marqueurs "Min"/"Max" sur la courbe day-ahead restent affichés séparément
 
 **Bases de comparaison ("vs ...")** : pas une seule règle globale, chaque
 métrique a la sienne (`mode` dans `store._kpis_courbe_connue`/`_reference_comparaison`) :
-- Prix moyen du jour / Base : **vs veille** (J-1).
+- Prix moyen du jour / Base / Peak du jour : **vs veille** (J-1).
 - TB2 / TB4 : **vs 7 jours** glissants.
-- Peak du jour, mFRR capacité : **vs 30 jours** glissants (comportement historique).
+- mFRR capacité : **vs 30 jours** glissants (historique RTE trop récent pour une comparaison annuelle).
 - FCR, aFRR capacité (hausse/baisse) : **vs même mois l'année précédente**
-  (cf. `hist_mensuel:<domaine>` ci-dessus — vide tant que l'historique n'est
-  pas importé, le pill reste alors masqué comme pour un 30j insuffisant).
+  (cf. `hist_mensuel:<domaine>` ci-dessus — masqué comme pour un 30j
+  insuffisant tant que `/api/importer_historique_mensuel` n'a pas été appelé
+  au moins une fois, cf. section 5.1).
 
 ## 1. Déployer sur Vercel (nécessite ton compte)
 
@@ -252,6 +263,24 @@ Endpoint protégé par le même `CRON_SECRET`, mais **pas** ajouté au
 déclencheur GitHub Actions (`.github/workflows/cron.yml`) — c'est une
 opération ponctuelle, à relancer à la main si besoin (ex. après un reset du
 KV), pas à chaque run.
+
+### 5.1 Historique long FCR/aFRR (comparaison "vs même mois l'année précédente")
+
+`data/gains_capacitaires_journalier.csv` (fourni par l'utilisateur, déployé
+avec le reste du dépôt) contient l'historique 2021-2026 des gains journaliers
+FCR/aFRR/mFRR d'un actif de référence 1 MW — utilisé comme proxy du prix de
+capacité €/MW/jour. `/api/importer_historique_mensuel` calcule les moyennes
+mensuelles par domaine et les écrit dans `hist_mensuel:<domaine>` (stockage
+permanent, cf. section 2/Indicateurs) :
+
+```powershell
+curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/importer_historique_mensuel
+```
+
+La réponse indique, par domaine, le nombre de mois importés et les bornes
+(`premier_mois`/`dernier_mois`). Comme `/api/backfill_historique`, cet
+endpoint n'est **pas** dans le déclencheur GitHub Actions — à appeler une
+fois (ou après mise à jour du CSV), pas à chaque run.
 
 ## 6. Affichage sur l'écran (Teams Rooms / TV)
 
