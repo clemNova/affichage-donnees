@@ -79,6 +79,16 @@ laisserait `requirements.txt` ignoré silencieusement une fois `uv` actif —
 d'où la suppression de `requirements.txt`, toutes les dépendances (pandas,
 numpy, requests, entsoe-py) vivent désormais dans `pyproject.toml`.
 
+**Fichiers de données lus au runtime (`data/*.csv`) via `includeFiles`** :
+Vercel n'embarque dans le bundle d'une fonction que ce qu'il peut tracer
+statiquement (imports Python) — un fichier ouvert au runtime via un chemin
+en dur (ex. `data/gains_capacitaires_journalier.csv` dans
+`importer_historique_mensuel.py`) n'est PAS inclus automatiquement et
+provoque *"fichier introuvable : /var/task/data/..."* en prod même si le
+fichier est bien commité dans le dépôt. Il faut le déclarer explicitement
+dans `vercel.json` (`functions.app.py.includeFiles`, cf. fichier) — sinon
+tout nouveau fichier sous `data/` doit être ajouté au même pattern glob.
+
 **Stockage** : un store Redis compatible REST (intégration Marketplace
 "Upstash for Redis", ou un compte Upstash autonome) — pas de fichier, pas de
 disque. Clés utilisées :
