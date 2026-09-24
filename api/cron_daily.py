@@ -35,7 +35,7 @@ def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
     ]:
         try:
             points = fetch()
-            n = store.maj_serie_connue_avance(nom_domaine, points, avec_tb2_bas_peak=avec_extras)
+            n = store.maj_serie_connue_avance(nom_domaine, points, avec_indicateurs_da=avec_extras)
             resultats[nom_domaine] = n
         except Exception:
             resultats[nom_domaine] = f"echec: {traceback.format_exc(limit=2)}"
@@ -48,6 +48,15 @@ def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
         resultats["afrr_capa"] = {"up": n_up, "down": n_down}
     except Exception:
         resultats["afrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
+
+    try:
+        identifiants = charge_identifiants_rte("BALANCING_CAPACITY")
+        capa_mfrr = fetchers.fetch_mfrr_capacite(debut, fin, identifiants)
+        n_up = store.maj_serie_connue_avance("mfrr_up_capa", capa_mfrr["UP"])
+        n_down = store.maj_serie_connue_avance("mfrr_down_capa", capa_mfrr["DOWN"])
+        resultats["mfrr_capa"] = {"up": n_up, "down": n_down}
+    except Exception:
+        resultats["mfrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
 
     return resultats
 

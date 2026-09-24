@@ -51,16 +51,18 @@ def fetch_fcr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list
     return [{"ts": t.isoformat(), "prix": float(v)} for t, v in zip(ts, prix)]
 
 
-def fetch_afrr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE) -> dict[str, list[dict]]:
-    """Prix de capacite aFRR (EUR/MW/15min, cf. guide RTE Balancing Capacity
-    §5.10.1.3), par sens. Renvoie {"UP": [...], "DOWN": [...]}."""
+def _fetch_capacite_reserve(
+    date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE, reserve: str
+) -> dict[str, list[dict]]:
+    """Prix de capacite (EUR/MW/15min, cf. guide RTE Balancing Capacity
+    §5.10.1.3), par sens, pour une reserve donnee. Renvoie {"UP": [...], "DOWN": [...]}."""
     url = "https://digital.iservices.rte-france.com/open_api/balancing_capacity/v5/result_procured_reserves"
     reponse = appelle_api_rte(url, identifiants, params={
         "start_date": date_debut.isoformat(), "end_date": date_fin.isoformat(),
     })
     resultat: dict[str, list[dict]] = {"UP": [], "DOWN": []}
     for bloc in reponse.get("result_procured_reserves", []):
-        if bloc.get("reserve") != "AFRR":
+        if bloc.get("reserve") != reserve:
             continue
         for valeur in bloc.get("values", []):
             direction = valeur.get("direction")
@@ -68,6 +70,20 @@ def fetch_afrr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp, identi
                 continue
             resultat[direction].append({"ts": valeur["start_date"][:19], "prix": float(valeur["price"])})
     return resultat
+
+
+def fetch_afrr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE) -> dict[str, list[dict]]:
+    """Prix de capacite aFRR, par sens. Renvoie {"UP": [...], "DOWN": [...]}."""
+    return _fetch_capacite_reserve(date_debut, date_fin, identifiants, "AFRR")
+
+
+def fetch_mfrr_capacite(date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE) -> dict[str, list[dict]]:
+    """Prix de capacite mFRR/RR, par sens. Meme ressource RTE que aFRR (v5),
+    disponible seulement depuis le 20/10/2025 (doc RTE "FCR, aFRR et mFRR/RR
+    capacity"). Valeur du champ `reserve` = "MFRR" supposee ici -- A VERIFIER
+    empiriquement en prod (reponse vide silencieuse si le libelle RTE reel
+    differe, cf. filtre dans _fetch_capacite_reserve)."""
+    return _fetch_capacite_reserve(date_debut, date_fin, identifiants, "MFRR")
 
 
 def _valeur_ou_nan(v) -> float:

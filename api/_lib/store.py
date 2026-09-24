@@ -3,12 +3,18 @@ journalier borne a 35 jours) et calcule le snapshot de KPI lu par /api/kpis.
 
 Modele de stockage (cf. dashboard_web/README.md pour le detail) :
 - `raw:<domaine>` : liste de points recents (quelques jours) pour les series
-  "connues a l'avance" (da, fcr, afrr_up_capa, afrr_down_capa), ou fenetre
-  glissante ~2 jours pour `raw:afrr_activation`.
-- `hist:<domaine>` : dict {date_iso: {moyenne, [tb2, bas, peak si DA]}},
-  borne aux 35 derniers jours -- sert de base a la comparaison 30j glissante
-  (meme calcul que dashboard_marche/dashboard_calc.moyenne_30j_glissante,
-  juste applique a un historique KV au lieu d'un CSV local).
+  "connues a l'avance" (da, fcr, afrr_up_capa, afrr_down_capa, mfrr_up_capa,
+  mfrr_down_capa), ou fenetre glissante ~2 jours pour `raw:afrr_activation`.
+- `hist:<domaine>` : dict {date_iso: {moyenne, [tb2, tb4, peak si DA]}},
+  borne aux 35 derniers jours -- sert de base aux comparaisons glissantes
+  (30j par defaut, 7j pour TB2/TB4, veille pour da -- cf.
+  `_reference_comparaison`), meme principe que dashboard_marche/dashboard_calc
+  mais applique a un historique KV au lieu d'un CSV local.
+- `hist_mensuel:<domaine>` : dict {"YYYY-MM": moyenne}, PERMANENT (jamais
+  purge, contrairement a `hist:<domaine>`) -- alimente separement (donnees
+  fournies par l'utilisateur, RTE Open Data n'expose pas un historique aussi
+  long via l'API) pour la comparaison "vs meme mois l'annee precedente" de
+  FCR et aFRR capacite, cf. `_valeur_mois_an_dernier`.
 - `kpis:latest` : snapshot final, ecrit par le cron 15 min, lu tel quel par
   /api/kpis (aucun calcul au moment de la requete -- reponse instantanee).
 """
@@ -23,6 +29,7 @@ PRUNE_JOURS = 35
 FENETRE_ACTIVATION_JOURS = 2
 
 DIRECTIONS_CAPACITE = {"up": "afrr_up_capa", "down": "afrr_down_capa"}
+DIRECTIONS_CAPACITE_MFRR = {"up": "mfrr_up_capa", "down": "mfrr_down_capa"}
 DIRECTIONS_ACTIVATION = {"up": "up", "down": "down"}
 
 
@@ -43,7 +50,7 @@ def _prune_hist(hist: dict) -> dict:
     return {k: v for k, v in hist.items() if k >= limite}
 
 
-def maj_serie_connue_avance(nom_domaine: str, points_bruts: list[dict], avec_tb2_bas_peak: bool = False) -> int:
+def maj_serie_connue_avance(nom_domaine: str, points_bruts: list[dict], avec_indicateurs_da: bool = False) -> int:
     """Fait basculer dans `hist:<domaine>` toute journee COMPLETE presente
     dans l'ancien `raw:<domaine>` (timestamp < aujourd'hui) avant de le
     remplacer par les nouveaux points fraichement recuperes -- rattrape
@@ -57,16 +64,15 @@ def maj_serie_connue_avance(nom_domaine: str, points_bruts: list[dict], avec_tb2
         aujourdhui = _maintenant().normalize()
         jours_complets = df_ancien[df_ancien["timestamp"] < aujourdhui]
         if not jours_complets.empty:
-            if avec_tb2_bas_peak:
+            if avec_indicateurs_da:
                 indicateurs = calc.indicateurs_journaliers_da(jours_complets.rename(columns={"prix": "prix_eur_mwh"}))
-                extremes = calc.min_max_journaliers(jours_complets, "prix")
                 for jour in indicateurs.index:
                     cle = jour.date().isoformat()
                     hist[cle] = {
                         "moyenne": indicateurs.loc[jour, "moyenne_jour"],
                         "tb2": indicateurs.loc[jour, "tb2"],
-                        "bas": extremes.loc[jour, "bas"],
-                        "peak": extremes.loc[jour, "peak"],
+                        "tb4": indicateurs.loc[jour, "tb4"],
+                        "peak": indicateurs.loc[jour, "peak"],
                     }
             else:
                 moyennes = calc.moyenne_journaliere(jours_complets, "prix")
@@ -103,7 +109,32 @@ def _serie_du_jour(df: pd.DataFrame, cle_valeur: str, jour: pd.Timestamp) -> lis
     return [{"ts": row.timestamp.isoformat(), "prix": float(getattr(row, cle_valeur))} for row in sous_ensemble.itertuples()]
 
 
-def _kpis_courbe_connue(ligne: dict, prefixe: str, nom_domaine: str, jour: pd.Timestamp, instant: pd.Timestamp) -> None:
+def _valeur_mois_an_dernier(nom_domaine: str, jour: pd.Timestamp) -> float:
+    """Moyenne du meme mois calendaire, un an plus tot, lue dans
+    `hist_mensuel:<domaine>` -- stockage PERMANENT (pas de purge, contrairement
+    a `hist:<domaine>` limite a 35 jours), cle 'YYYY-MM' -> moyenne mensuelle.
+    Alimente separement (RTE Open Data n'expose pas un historique aussi long
+    via l'API) -- renvoie NaN tant que la cle n'existe pas encore."""
+    mois_reference = (pd.Timestamp(jour).normalize() - pd.DateOffset(years=1)).strftime("%Y-%m")
+    hist_mensuel = kv.get_json(f"hist_mensuel:{nom_domaine}", {})
+    valeur = hist_mensuel.get(mois_reference)
+    return float(valeur) if valeur is not None else float("nan")
+
+
+def _reference_comparaison(mode: str, nom_domaine: str, historique_moyennes: pd.Series, jour: pd.Timestamp) -> float:
+    if mode == "veille":
+        return calc.valeur_veille(historique_moyennes, jour)
+    if mode == "mois_an_dernier":
+        return _valeur_mois_an_dernier(nom_domaine, jour)
+    jours = 7 if mode == "7j" else 30
+    return calc.moyenne_nj_glissante(historique_moyennes, jour, jours) if len(historique_moyennes) else float("nan")
+
+
+def _kpis_courbe_connue(ligne: dict, prefixe: str, nom_domaine: str, jour: pd.Timestamp, instant: pd.Timestamp, mode: str = "30j") -> None:
+    """`mode` fixe la base de comparaison du pourcentage d'ecart : "30j"
+    (moyenne glissante 30j, defaut), "veille" (J-1), "7j" (moyenne glissante
+    7j) ou "mois_an_dernier" (meme mois, annee precedente, cf.
+    `_valeur_mois_an_dernier`)."""
     points = kv.get_json(f"raw:{nom_domaine}", [])
     df = _df_points(points, "prix")
     if df.empty:
@@ -126,10 +157,9 @@ def _kpis_courbe_connue(ligne: dict, prefixe: str, nom_domaine: str, jour: pd.Ti
         return
 
     historique_moyennes = pd.Series({pd.Timestamp(d): v["moyenne"] for d, v in hist.items()})
-    moyenne_30j = calc.moyenne_30j_glissante(historique_moyennes, jour) if len(historique_moyennes) else float("nan")
+    reference = _reference_comparaison(mode, nom_domaine, historique_moyennes, jour)
     ligne[f"{prefixe}_moyenne_jour"] = moyenne_jour
-    ligne[f"{prefixe}_moyenne_30j"] = moyenne_30j
-    ligne[f"{prefixe}_ecart_pct"] = calc.ecart_pct(moyenne_jour, moyenne_30j)
+    ligne[f"{prefixe}_ecart_pct"] = calc.ecart_pct(moyenne_jour, reference)
 
 
 def calcule_et_sauvegarde_snapshot() -> dict:
@@ -137,42 +167,50 @@ def calcule_et_sauvegarde_snapshot() -> dict:
     jour = instant.normalize()
     ligne: dict = {"fetched_at": instant.isoformat()}
 
-    _kpis_courbe_connue(ligne, "da", "da", jour, instant)
+    # Prix moyen du jour (= prix Base EPEX, moyenne 24h) compare a la veille
+    # (J-1), pas a une moyenne glissante -- cf. echange utilisateur.
+    _kpis_courbe_connue(ligne, "da", "da", jour, instant, mode="veille")
 
     df_da = _df_points(kv.get_json("raw:da", []), "prix")
     hist_da = kv.get_json("hist:da", {})
     if not df_da.empty:
         indicateurs = calc.indicateurs_journaliers_da(df_da.rename(columns={"prix": "prix_eur_mwh"}))
-        extremes = calc.min_max_journaliers(df_da, "prix")
         if jour in indicateurs.index:
             tb2 = float(indicateurs.loc[jour, "tb2"])
-            bas = float(extremes.loc[jour, "bas"])
-            peak = float(extremes.loc[jour, "peak"])
+            tb4 = float(indicateurs.loc[jour, "tb4"])
+            peak = float(indicateurs.loc[jour, "peak"])
         elif jour.date().isoformat() in hist_da:
             entree = hist_da[jour.date().isoformat()]
-            tb2, bas, peak = entree.get("tb2"), entree.get("bas"), entree.get("peak")
+            tb2, tb4, peak = entree.get("tb2"), entree.get("tb4"), entree.get("peak")
         else:
-            tb2 = bas = peak = None
+            tb2 = tb4 = peak = None
         if tb2 is not None:
             hist_tb2 = pd.Series({pd.Timestamp(d): v["tb2"] for d, v in hist_da.items() if "tb2" in v})
-            hist_bas = pd.Series({pd.Timestamp(d): v["bas"] for d, v in hist_da.items() if "bas" in v})
+            hist_tb4 = pd.Series({pd.Timestamp(d): v["tb4"] for d, v in hist_da.items() if "tb4" in v})
             hist_peak = pd.Series({pd.Timestamp(d): v["peak"] for d, v in hist_da.items() if "peak" in v})
-            tb2_30j = calc.moyenne_30j_glissante(hist_tb2, jour) if len(hist_tb2) else float("nan")
-            bas_30j = calc.moyenne_30j_glissante(hist_bas, jour) if len(hist_bas) else float("nan")
-            peak_30j = calc.moyenne_30j_glissante(hist_peak, jour) if len(hist_peak) else float("nan")
+            # TB2/TB4 compares a 7j (spreads plus volatils qu'un prix moyen),
+            # Peak reste compare a 30j -- cf. echange utilisateur.
+            tb2_ref = calc.moyenne_nj_glissante(hist_tb2, jour, 7) if len(hist_tb2) else float("nan")
+            tb4_ref = calc.moyenne_nj_glissante(hist_tb4, jour, 7) if len(hist_tb4) else float("nan")
+            peak_ref = calc.moyenne_nj_glissante(hist_peak, jour, 30) if len(hist_peak) else float("nan")
             ligne["da_tb2"] = tb2
-            ligne["da_tb2_moyenne_30j"] = tb2_30j
-            ligne["da_tb2_ecart_pct"] = calc.ecart_pct(tb2, tb2_30j)
-            ligne["da_bas_jour"] = bas
-            ligne["da_bas_moyenne_30j"] = bas_30j
-            ligne["da_bas_ecart_pct"] = calc.ecart_pct(bas, bas_30j)
+            ligne["da_tb2_ecart_pct"] = calc.ecart_pct(tb2, tb2_ref)
+            ligne["da_tb4"] = tb4
+            ligne["da_tb4_ecart_pct"] = calc.ecart_pct(tb4, tb4_ref)
             ligne["da_peak_jour"] = peak
-            ligne["da_peak_moyenne_30j"] = peak_30j
-            ligne["da_peak_ecart_pct"] = calc.ecart_pct(peak, peak_30j)
+            ligne["da_peak_ecart_pct"] = calc.ecart_pct(peak, peak_ref)
 
-    _kpis_courbe_connue(ligne, "fcr", "fcr", jour, instant)
+    # FCR et aFRR capacite : compares au meme mois l'annee precedente (pas a
+    # une moyenne glissante 30j) -- historique fourni separement par
+    # l'utilisateur dans hist_mensuel:<domaine>, cf. _valeur_mois_an_dernier.
+    _kpis_courbe_connue(ligne, "fcr", "fcr", jour, instant, mode="mois_an_dernier")
     for prefixe, nom_domaine in DIRECTIONS_CAPACITE.items():
-        _kpis_courbe_connue(ligne, f"afrr_{prefixe}_capa", nom_domaine, jour, instant)
+        _kpis_courbe_connue(ligne, f"afrr_{prefixe}_capa", nom_domaine, jour, instant, mode="mois_an_dernier")
+    # mFRR : domaine trop recent (RTE ne publie cette capacite que depuis le
+    # 20/10/2025) pour une comparaison annuelle -- reste sur la moyenne
+    # glissante 30j standard.
+    for prefixe, nom_domaine in DIRECTIONS_CAPACITE_MFRR.items():
+        _kpis_courbe_connue(ligne, f"mfrr_{prefixe}_capa", nom_domaine, jour, instant)
 
     points_activation = kv.get_json("raw:afrr_activation", [])
     if points_activation:
@@ -195,6 +233,8 @@ def calcule_et_sauvegarde_snapshot() -> dict:
         "fcr": _serie_du_jour(_df_points(kv.get_json("raw:fcr", []), "prix"), "prix", jour),
         "afrr_up_capa": _serie_du_jour(_df_points(kv.get_json("raw:afrr_up_capa", []), "prix"), "prix", jour),
         "afrr_down_capa": _serie_du_jour(_df_points(kv.get_json("raw:afrr_down_capa", []), "prix"), "prix", jour),
+        "mfrr_up_capa": _serie_du_jour(_df_points(kv.get_json("raw:mfrr_up_capa", []), "prix"), "prix", jour),
+        "mfrr_down_capa": _serie_du_jour(_df_points(kv.get_json("raw:mfrr_down_capa", []), "prix"), "prix", jour),
     }
 
     ligne_json = {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in ligne.items()}

@@ -1,7 +1,7 @@
 """Backfill ponctuel de l'historique (hist:da, hist:fcr, hist:afrr_up_capa,
-hist:afrr_down_capa) directement depuis les API RTE/ENTSO-E, qui exposent
-aussi les prix PASSES -- evite d'attendre 35 jours que cron_daily les
-accumule naturellement jour par jour.
+hist:afrr_down_capa, hist:mfrr_up_capa, hist:mfrr_down_capa) directement
+depuis les API RTE/ENTSO-E, qui exposent aussi les prix PASSES -- evite
+d'attendre 35 jours que cron_daily les accumule naturellement jour par jour.
 
 Deux contraintes combinees, decouvertes en usage reel :
 1. Un seul appel ENTSO-E/RTE sur une fenetre large (35j) ne renvoie EN
@@ -9,7 +9,7 @@ Deux contraintes combinees, decouvertes en usage reel :
    d'erreur levee) -- il faut decouper en fenetres COURTES (CHUNK_JOURS)
    qui se suivent chronologiquement (store.maj_serie_connue_avance archive
    une fenetre dans hist:<domaine> des l'appel de la fenetre SUIVANTE).
-2. 7 fenetres x 3 appels API strictement sequentiels depasse le timeout
+2. 7 fenetres x 4 appels API strictement sequentiels depasse le timeout
    Vercel (60s max, palier Hobby) -- FUNCTION_INVOCATION_TIMEOUT constate.
 3. Chaque fenetre ECRASE raw:<domaine> (store.maj_serie_connue_avance) --
    la derniere fenetre de backfill s'arretant a hier (jamais aujourd'hui,
@@ -21,11 +21,14 @@ Deux contraintes combinees, decouvertes en usage reel :
    backfill (et archive au passage la derniere fenetre de backfill dans
    hist:<domaine>, sans perte).
 
-da / fcr / afrr_capa sont des domaines KV independants (raw:da, raw:fcr,
-raw:afrr_up_capa+down_capa) : aucune dependance d'ordre ENTRE eux, seulement
-A L'INTERIEUR de chaque domaine. Paralleliser les 3 sequences avec un thread
-chacune (I/O-bound, le GIL n'est pas un problleme ici) ramene le temps total
-au plus lent des 3 au lieu de la somme des 21 appels.
+da / fcr / afrr_capa / mfrr_capa sont des domaines KV independants
+(raw:da, raw:fcr, raw:afrr_up_capa+down_capa, raw:mfrr_up_capa+down_capa) :
+aucune dependance d'ordre ENTRE eux, seulement A L'INTERIEUR de chaque
+domaine. Paralleliser les 4 sequences avec un thread chacune (I/O-bound, le
+GIL n'est pas un probleme ici) ramene le temps total au plus lent des 4 au
+lieu de la somme des appels. mFRR n'a en pratique de donnees que depuis le
+20/10/2025 (cf. fetchers.fetch_mfrr_capacite) -- les fenetres anterieures a
+cette date renverront simplement 0 point, sans que ce soit une erreur.
 
 Endpoint manuel, protege par CRON_SECRET comme les autres cron (cf.
 _lib/auth.py), mais PAS ajoute au declencheur planifie GitHub Actions
@@ -68,7 +71,7 @@ def _backfill_da(debut_globale: pd.Timestamp, fin_globale: pd.Timestamp) -> list
         etiquette = f"{debut.date()}..{fin.date()}"
         try:
             points = fetchers.fetch_day_ahead(debut, fin)
-            n = store.maj_serie_connue_avance("da", points, avec_tb2_bas_peak=True)
+            n = store.maj_serie_connue_avance("da", points, avec_indicateurs_da=True)
             detail.append({"fenetre": etiquette, "n": n})
         except Exception:
             detail.append({"fenetre": etiquette, "erreur": traceback.format_exc(limit=2)})
@@ -106,6 +109,27 @@ def _backfill_afrr_capa(debut_globale: pd.Timestamp, fin_globale: pd.Timestamp) 
     return detail
 
 
+def _backfill_mfrr_capa(debut_globale: pd.Timestamp, fin_globale: pd.Timestamp) -> list[dict]:
+    """Meme principe que _backfill_afrr_capa -- mFRR n'a en pratique de
+    donnees que depuis le 20/10/2025 (cf. fetchers.fetch_mfrr_capacite), donc
+    les fenetres anterieures renverront simplement 0 point, sans erreur."""
+    try:
+        identifiants = charge_identifiants_rte("BALANCING_CAPACITY")
+    except Exception:
+        return [{"fenetre": "toutes", "erreur": traceback.format_exc(limit=2)}]
+    detail = []
+    for debut, fin in _fenetres(debut_globale, fin_globale):
+        etiquette = f"{debut.date()}..{fin.date()}"
+        try:
+            capa = fetchers.fetch_mfrr_capacite(debut, fin, identifiants)
+            n_up = store.maj_serie_connue_avance("mfrr_up_capa", capa["UP"])
+            n_down = store.maj_serie_connue_avance("mfrr_down_capa", capa["DOWN"])
+            detail.append({"fenetre": etiquette, "up": n_up, "down": n_down})
+        except Exception:
+            detail.append({"fenetre": etiquette, "erreur": traceback.format_exc(limit=2)})
+    return detail
+
+
 def _total(detail: list[dict], cle: str = "n") -> int:
     return sum(d[cle] for d in detail if cle in d)
 
@@ -115,13 +139,15 @@ def executer() -> dict:
     fin_globale = maintenant.normalize()  # exclut aujourd'hui, journee incomplete
     debut_globale = fin_globale - pd.Timedelta(days=JOURS_BACKFILL)
 
-    with ThreadPoolExecutor(max_workers=3) as executeur:
+    with ThreadPoolExecutor(max_workers=4) as executeur:
         futur_da = executeur.submit(_backfill_da, debut_globale, fin_globale)
         futur_fcr = executeur.submit(_backfill_fcr, debut_globale, fin_globale)
         futur_capa = executeur.submit(_backfill_afrr_capa, debut_globale, fin_globale)
+        futur_capa_mfrr = executeur.submit(_backfill_mfrr_capa, debut_globale, fin_globale)
         detail_da = futur_da.result()
         detail_fcr = futur_fcr.result()
         detail_capa = futur_capa.result()
+        detail_capa_mfrr = futur_capa_mfrr.result()
 
     # Chaque fenetre de backfill ECRASE raw:<domaine> avec SES points
     # (store.maj_serie_connue_avance) -- la derniere fenetre s'arretant a
@@ -143,6 +169,11 @@ def executer() -> dict:
             "up_total": _total(detail_capa, "up"),
             "down_total": _total(detail_capa, "down"),
             "detail_par_chunk": detail_capa,
+        },
+        "mfrr_capa": {
+            "up_total": _total(detail_capa_mfrr, "up"),
+            "down_total": _total(detail_capa_mfrr, "down"),
+            "detail_par_chunk": detail_capa_mfrr,
         },
         "restauration_fenetre_courante": restauration,
     }

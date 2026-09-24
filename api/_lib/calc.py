@@ -23,24 +23,41 @@ import numpy as np
 import pandas as pd
 
 
-def agrege_moyennes_horaires(prix_jour: pd.Series) -> pd.Series:
-    """Moyennes horaires d'UNE journee de prix 15 min (Series indexee par
-    timestamp). Groupe par heure REELLE (resample) plutot que par un simple
-    reshape 96 -> 24x4, pour rester correct sur les journees courtes/longues
-    de changement d'heure (23h ou 25h)."""
-    return prix_jour.resample("1h").mean()
+def calcule_tbn(prix_jour: pd.Series, n_periodes: int) -> float:
+    """Definition generale TBx : moyenne des n PERIODES DE 15 MIN les plus
+    cheres de la journee - moyenne des n periodes de 15 min les moins cheres,
+    calculee directement sur les prix 15 min bruts (pas de moyenne horaire
+    intermediaire), avec n_periodes = 4 * x (x = nombre d'HEURES designe par
+    TBx). Ex. TB2 = 2 heures = 4*2 = 8 periodes de 15 min -> calcule_tbn(_, 8)."""
+    valeurs = prix_jour.dropna().to_numpy()
+    if len(valeurs) < 2 * n_periodes:
+        return float("nan")
+    n_plus_chers = np.partition(valeurs, -n_periodes)[-n_periodes:]
+    n_moins_chers = np.partition(valeurs, n_periodes)[:n_periodes]
+    return float(np.mean(n_plus_chers) - np.mean(n_moins_chers))
 
 
 def calcule_tb2(prix_jour: pd.Series) -> float:
-    """TB2 = moyenne(2 heures pleines les plus cheres) - moyenne(2 heures
-    pleines les moins cheres), sur les moyennes HORAIRES (agrege_moyennes_horaires),
-    PAS sur les quarts d'heure bruts."""
-    moyennes_horaires = agrege_moyennes_horaires(prix_jour).dropna().to_numpy()
-    if len(moyennes_horaires) < 4:
-        return float("nan")
-    deux_h_up = np.partition(moyennes_horaires, -2)[-2:]
-    deux_h_down = np.partition(moyennes_horaires, 2)[:2]
-    return float(np.mean(deux_h_up) - np.mean(deux_h_down))
+    """TB2 = 2 HEURES = 2*4 = 8 periodes de 15 min. TB2 = moyenne des 8
+    quarts d'heure les plus chers de la journee - moyenne des 8 quarts
+    d'heure les moins chers (cf. calcule_tbn pour la definition generale)."""
+    return calcule_tbn(prix_jour, 8)
+
+
+def calcule_tb4(prix_jour: pd.Series) -> float:
+    """TB4 = 4 HEURES = 4*4 = 16 periodes de 15 min (cf. calcule_tbn)."""
+    return calcule_tbn(prix_jour, 16)
+
+
+def calcule_peak(prix_jour: pd.Series, heure_debut: int = 8, heure_fin: int = 20) -> float:
+    """Prix Peak (convention marche EPEX) = moyenne des prix sur le bloc
+    horaire [heure_debut, heure_fin) de la journee -- 8h-20h par defaut.
+    Calcul simplifie : pas de distinction jours ouvres/feries. Le prix Base
+    (convention EPEX = moyenne des 24h de la journee) n'a pas besoin de
+    fonction dediee : c'est exactement `moyenne_journaliere`."""
+    fenetre = prix_jour.between_time(f"{heure_debut:02d}:00", f"{heure_fin:02d}:00", inclusive="left")
+    valeurs = fenetre.dropna()
+    return float(valeurs.mean()) if len(valeurs) else float("nan")
 
 
 def moyenne_journaliere(df: pd.DataFrame, colonne: str) -> pd.Series:
@@ -51,39 +68,23 @@ def moyenne_journaliere(df: pd.DataFrame, colonne: str) -> pd.Series:
 
 
 def indicateurs_journaliers_da(df_spot_15min: pd.DataFrame) -> pd.DataFrame:
-    """DataFrame indexe par jour, colonnes `moyenne_jour` et `tb2`."""
+    """DataFrame indexe par jour, colonnes `moyenne_jour` (= prix Base EPEX,
+    moyenne 24h), `tb2`, `tb4` et `peak` (prix Peak EPEX, moyenne 8h-20h)."""
     serie = df_spot_15min.set_index("timestamp")["prix_eur_mwh"]
     par_jour = serie.groupby(serie.index.normalize())
     return pd.DataFrame({
         "moyenne_jour": par_jour.mean(),
         "tb2": par_jour.apply(calcule_tb2),
+        "tb4": par_jour.apply(calcule_tb4),
+        "peak": par_jour.apply(calcule_peak),
     })
 
 
-def min_max_journaliers(df: pd.DataFrame, colonne: str) -> pd.DataFrame:
-    """DataFrame indexe par jour, colonnes `bas` et `peak` : min/max des quarts
-    d'heure BRUTS de chaque journee (pas de lissage horaire, contrairement a
-    calcule_tb2) -- doit correspondre exactement aux extremes visibles sur un
-    profil 15 min affiche."""
-    serie = df.set_index("timestamp")[colonne]
-    par_jour = serie.groupby(serie.index.normalize())
-
-    def _bas(s: pd.Series) -> float:
-        h = s.dropna()
-        return float(h.min()) if len(h) else float("nan")
-
-    def _peak(s: pd.Series) -> float:
-        h = s.dropna()
-        return float(h.max()) if len(h) else float("nan")
-
-    return pd.DataFrame({"bas": par_jour.apply(_bas), "peak": par_jour.apply(_peak)})
-
-
-def moyenne_30j_glissante(historique_journalier: pd.Series, jour_reference: pd.Timestamp) -> float:
-    """Moyenne des valeurs journalieres sur les 30 jours PRECEDANT
+def moyenne_nj_glissante(historique_journalier: pd.Series, jour_reference: pd.Timestamp, jours: int = 30) -> float:
+    """Moyenne des valeurs journalieres sur les `jours` jours PRECEDANT
     jour_reference (jour_reference exclu)."""
     jour_reference = pd.Timestamp(jour_reference).normalize()
-    debut = jour_reference - pd.Timedelta(days=30)
+    debut = jour_reference - pd.Timedelta(days=jours)
     masque = (historique_journalier.index >= debut) & (historique_journalier.index < jour_reference)
     valeurs = historique_journalier.loc[masque].dropna()
     if valeurs.empty:
@@ -91,11 +92,23 @@ def moyenne_30j_glissante(historique_journalier: pd.Series, jour_reference: pd.T
     return float(valeurs.mean())
 
 
-def ecart_pct(valeur_jour: float, moyenne_30j: float) -> float:
-    """ecart_pct = (valeur_jour - moyenne_30j) / moyenne_30j * 100."""
-    if moyenne_30j is None or pd.isna(moyenne_30j) or moyenne_30j == 0:
+def valeur_veille(historique_journalier: pd.Series, jour_reference: pd.Timestamp) -> float:
+    """Valeur du jour precedant immediatement jour_reference (J-1) -- pour la
+    comparaison 'vs veille', distincte d'une moyenne glissante."""
+    veille = pd.Timestamp(jour_reference).normalize() - pd.Timedelta(days=1)
+    if veille not in historique_journalier.index:
         return float("nan")
-    return (valeur_jour - moyenne_30j) / moyenne_30j * 100.0
+    valeur = historique_journalier.loc[veille]
+    return float(valeur) if pd.notna(valeur) else float("nan")
+
+
+def ecart_pct(valeur_jour: float, reference: float) -> float:
+    """ecart_pct = (valeur_jour - reference) / reference * 100, quelle que
+    soit la nature de `reference` (moyenne glissante, valeur de la veille,
+    moyenne du meme mois l'annee precedente...)."""
+    if reference is None or pd.isna(reference) or reference == 0:
+        return float("nan")
+    return (valeur_jour - reference) / reference * 100.0
 
 
 def trouve_valeur_courante(df: pd.DataFrame, colonne: str, instant: pd.Timestamp) -> tuple[pd.Timestamp, float] | None:

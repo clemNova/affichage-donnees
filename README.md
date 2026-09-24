@@ -22,12 +22,12 @@ app.py               point d'entree Python unique -- route lui-meme /api/kpis,
                      /api/cron_daily, /api/cron_15min vers la logique
                      correspondante dans api/ (imports directs, pas de HTTP interne)
 api/
-    cron_daily.py     logique (executer()) — fetch day-ahead + FCR + capacité aFRR (1x/jour)
+    cron_daily.py     logique (executer()) — fetch day-ahead + FCR + capacité aFRR + capacité mFRR (1x/jour)
     cron_15min.py     logique (executer()) — fetch activation aFRR + calcule le snapshot KPI (15 min)
     _lib/
         http_utils.py    helpers de reponse HTTP (JSON/CORS, refus 401) utilises par app.py
         auth.py         verrou d'accès des endpoints cron (fermé par défaut, cf. section 4)
-        calc.py          calculs purs (TB2, moyennes, curseur, bas/peak...)
+        calc.py          calculs purs (TBx, prix Base/Peak EPEX, moyennes, curseur...)
         store.py          orchestration KV (historique 35j, calcul du snapshot)
         kv.py              client REST Upstash/Vercel KV (pas de dépendance redis)
         rte_client.py       client OAuth2 RTE
@@ -73,13 +73,50 @@ numpy, requests, entsoe-py) vivent désormais dans `pyproject.toml`.
 **Stockage** : un store Redis compatible REST (intégration Marketplace
 "Upstash for Redis", ou un compte Upstash autonome) — pas de fichier, pas de
 disque. Clés utilisées :
-- `raw:<domaine>` (da, fcr, afrr_up_capa, afrr_down_capa) — quelques jours de
-  points 15 min, remplacés chaque jour par `cron_daily`.
+- `raw:<domaine>` (da, fcr, afrr_up_capa, afrr_down_capa, mfrr_up_capa,
+  mfrr_down_capa) — quelques jours de points 15 min, remplacés chaque jour
+  par `cron_daily`.
 - `raw:afrr_activation` — fenêtre glissante ~2 jours, fusionnée par `cron_15min`.
-- `hist:<domaine>` — moyennes (et tb2/bas/peak pour `da`) des 35 derniers
-  jours, alimenté par `cron_daily` à chaque bascule de journée — base de la
-  comparaison 30j glissante.
+- `hist:<domaine>` — moyennes (et tb2/tb4/peak pour `da`) des 35 derniers
+  jours, alimenté par `cron_daily` à chaque bascule de journée — base des
+  comparaisons glissantes (30j par défaut, 7j pour TB2/TB4, veille pour `da`,
+  cf. section Indicateurs).
+- `hist_mensuel:<domaine>` (fcr, afrr_up_capa, afrr_down_capa) — moyennes
+  **mensuelles**, stockage **permanent** (jamais purgé, contrairement à
+  `hist:<domaine>`) : `{"YYYY-MM": moyenne}`. Alimente la comparaison "vs
+  même mois l'année précédente" de FCR/aFRR capacité — RTE Open Data
+  n'exposant pas un historique aussi long via l'API, cette clé doit être
+  peuplée séparément (import manuel à construire une fois le fichier
+  d'historique fourni par l'utilisateur — pas encore automatisé).
 - `kpis:latest` — le snapshot complet lu par `/api/kpis` (et donc par la page).
+
+## Indicateurs
+
+**TBx (dont TB2, TB4)** : moyenne des n périodes les plus chères de la
+journée moins la moyenne des n périodes les moins chères, une période
+valant **15 minutes** et **n = 4 × x** (x = nombre d'heures désigné par
+TBx) — calcul sur les prix 15 min bruts, pas sur des moyennes horaires.
+TB2 = 2h = 4×2 = 8 quarts d'heure, TB4 = 4h = 4×4 = 16 quarts d'heure.
+Implémenté par `calcule_tbn(prix_jour, n_periodes)` dans `api/_lib/calc.py`
+(`calcule_tb2`/`calcule_tb4` en sont les cas particuliers `n_periodes=8`/`16`).
+
+**Prix Base / Peak (convention marché EPEX)** : Base = moyenne des prix sur
+les 24h de la journée (donc **identique** à "Prix moyen du jour" — pas de
+champ dédié côté snapshot, `da_base` réutilise `da_moyenne_jour`/`da_ecart_pct`
+côté page). Peak = moyenne des prix sur le bloc horaire **8h-20h** de la
+journée (`calcule_peak` dans `calc.py`) — calcul simplifié, pas de distinction
+jours ouvrés/fériés. Remplace l'ancien calcul (min/max journalier littéral) ;
+les marqueurs "Min"/"Max" sur la courbe day-ahead restent affichés séparément
+(calculés côté client, cf. `extremesLocaux` dans `index.html`).
+
+**Bases de comparaison ("vs ...")** : pas une seule règle globale, chaque
+métrique a la sienne (`mode` dans `store._kpis_courbe_connue`/`_reference_comparaison`) :
+- Prix moyen du jour / Base : **vs veille** (J-1).
+- TB2 / TB4 : **vs 7 jours** glissants.
+- Peak du jour, mFRR capacité : **vs 30 jours** glissants (comportement historique).
+- FCR, aFRR capacité (hausse/baisse) : **vs même mois l'année précédente**
+  (cf. `hist_mensuel:<domaine>` ci-dessus — vide tant que l'historique n'est
+  pas importé, le pill reste alors masqué comme pour un 30j insuffisant).
 
 ## 1. Déployer sur Vercel (nécessite ton compte)
 
@@ -196,10 +233,12 @@ Deux contraintes constatées en usage réel, toutes deux gérées :
   35 jours d'un coup : un appel unique sur une fenêtre aussi large ne
   renvoie en pratique que 2-3 jours de points (troncature silencieuse côté
   API ENTSO-E/RTE, pas d'erreur levée).
-- **Les 3 domaines (day-ahead, FCR, aFRR capacité) sont récupérés en
-  parallèle** (3 threads, I/O-bound) : 7 fenêtres × 3 appels strictement
-  séquentiels dépassait les 60s max du palier Hobby
-  (`FUNCTION_INVOCATION_TIMEOUT`).
+- **Les 4 domaines (day-ahead, FCR, aFRR capacité, mFRR capacité) sont
+  récupérés en parallèle** (4 threads, I/O-bound) : 7 fenêtres × 4 appels
+  strictement séquentiels dépassait les 60s max du palier Hobby
+  (`FUNCTION_INVOCATION_TIMEOUT`). mFRR n'a en pratique de données que
+  depuis le 20/10/2025 (nouvelle ressource côté API RTE v5) — les fenêtres
+  antérieures renvoient simplement 0 point, sans erreur.
 
 La réponse inclut `detail_par_chunk` par domaine (nombre de points par
 fenêtre de 5 jours) pour vérifier qu'aucune fenêtre n'est anormalement
@@ -225,6 +264,13 @@ connecté à la TV. Le fuseau horaire du poste doit être réglé sur
 
 Aucun accès à un vrai compte Vercel/Upstash/GitHub Actions depuis la session
 qui a écrit ce code :
+- **Filtre `reserve="MFRR"` dans `fetchers.fetch_mfrr_capacite`** : valeur
+  supposée d'après la doc RTE publique ("FCR, aFRR et mFRR/RR capacity"),
+  jamais vérifiée contre un vrai appel API (pas d'identifiants RTE dans cette
+  session). Si la réponse `mfrr_capa` du snapshot reste vide malgré des
+  identifiants RTE valides, vérifier la valeur exacte du champ `reserve`
+  renvoyée par `balancing_capacity/v5/result_procured_reserves` (peut-être
+  `"MFRR-RR"` ou une autre orthographe) et l'ajuster dans `fetchers.py`.
 - Logique métier (calculs, KV, snapshot) : vérifiée en local avec un faux
   store en mémoire, résultats cohérents — jamais exécutée dans le runtime
   Python réel de Vercel.
