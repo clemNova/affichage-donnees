@@ -158,6 +158,10 @@
   .card.accent-mfrr .mini-value .valeur-grande{font-size:1.55rem}
   .card.accent-res .reserves-stats:not(.activation-inline) .mini-value .unite-petite,
   .card.accent-mfrr .mini-value .unite-petite{font-size:.68rem;font-weight:500;color:var(--text-dim)}
+  /* Pill pousse contre le bord droit de la mini-box, au lieu de coller a la
+     valeur -- cf. echange utilisateur (meme scope aFRR/mFRR uniquement). */
+  .card.accent-res .reserves-stats:not(.activation-inline) .mini-value,
+  .card.accent-mfrr .mini-value{justify-content:space-between;width:100%}
 
   /* --- Row 2 : Reserves --- */
   .row-reserves{flex:1;min-height:0;display:flex;flex-direction:column}
