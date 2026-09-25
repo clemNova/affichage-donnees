@@ -157,6 +157,13 @@ def _kpis_courbe_connue(ligne: dict, prefixe: str, nom_domaine: str, jour: pd.Ti
         return
 
     historique_moyennes = pd.Series({pd.Timestamp(d): v["moyenne"] for d, v in hist.items()})
+    # Complete avec les jours presents dans raw:<domaine> mais pas encore
+    # archives dans hist:<domaine> (ex. hier, juste apres minuit, avant que
+    # cron_daily n'ait tourne aujourd'hui) -- sans ca, "vs veille" resterait
+    # sans donnee (donc pas de pill) jusqu'au premier cron_daily du jour.
+    for jour_present, valeur_presente in quotidien_aujourdhui.items():
+        if jour_present != jour:
+            historique_moyennes[jour_present] = float(valeur_presente)
     reference = _reference_comparaison(mode, nom_domaine, historique_moyennes, jour)
     ligne[f"{prefixe}_moyenne_jour"] = moyenne_jour
     ligne[f"{prefixe}_ecart_pct"] = calc.ecart_pct(moyenne_jour, reference)
@@ -188,6 +195,15 @@ def calcule_et_sauvegarde_snapshot() -> dict:
             hist_tb2 = pd.Series({pd.Timestamp(d): v["tb2"] for d, v in hist_da.items() if "tb2" in v})
             hist_tb4 = pd.Series({pd.Timestamp(d): v["tb4"] for d, v in hist_da.items() if "tb4" in v})
             hist_peak = pd.Series({pd.Timestamp(d): v["peak"] for d, v in hist_da.items() if "peak" in v})
+            # Complete avec les jours de raw:da pas encore archives dans
+            # hist:da (meme raison que dans _kpis_courbe_connue -- evite un
+            # trou quotidien juste apres minuit, avant le premier cron_daily).
+            for jour_present in indicateurs.index:
+                if jour_present == jour:
+                    continue
+                hist_tb2[jour_present] = float(indicateurs.loc[jour_present, "tb2"])
+                hist_tb4[jour_present] = float(indicateurs.loc[jour_present, "tb4"])
+                hist_peak[jour_present] = float(indicateurs.loc[jour_present, "peak"])
             # TB2/TB4 compares a 7j (spreads plus volatils qu'un prix moyen).
             # Peak compare a la veille (comme Base/Prix moyen du jour) --
             # cf. echange utilisateur.
