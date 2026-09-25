@@ -138,10 +138,14 @@
   }
   .crosshair-tip .k{color:var(--text-faint)}
 
-  .pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-corps);font-size:.72rem;font-weight:800;padding:2px 7px;border-radius:999px;line-height:1.5;white-space:nowrap}
+  /* Deux lignes (valeur, puis legende plus petite) plutot qu'une seule ligne
+     large -- evite le debordement des mini-boxes etroites (aFRR/mFRR) avec
+     des legendes longues comme "vs mois A-1". */
+  .pill{display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;font-family:var(--font-corps);font-weight:800;padding:3px 7px;border-radius:8px;line-height:1.3}
   .pill.up{color:var(--pos);background:color-mix(in srgb, var(--pos) 16%, transparent)}
   .pill.down{color:var(--res);background:color-mix(in srgb, var(--res) 16%, transparent)}
-  .pill-cap{font-size:.64rem;color:var(--text-faint);font-weight:500;margin-left:2px}
+  .pill-value{font-size:.72rem;white-space:nowrap}
+  .pill-cap{display:block;font-size:.58rem;color:var(--text-faint);font-weight:500;white-space:nowrap}
 
   /* --- Row 2 : Reserves --- */
   .row-reserves{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -528,7 +532,7 @@
     const up = ecartPct >= 0;
     const fleche = up ? "&#9650;" : "&#9660;";
     const signe = up ? "+" : "−";
-    return `<span class="pill ${up?"up":"down"}">${fleche} ${signe}${fmt(Math.abs(ecartPct),1)}&#37;<span class="pill-cap">${caption || "vs 30j"}</span></span>`;
+    return `<span class="pill ${up?"up":"down"}"><span class="pill-value">${fleche} ${signe}${fmt(Math.abs(ecartPct),1)}&#37;</span><span class="pill-cap">${caption || "vs 30j"}</span></span>`;
   }
   function setText(id, texte){ const el = document.getElementById(id); if(el) el.textContent = texte; }
   function setHtml(id, html){ const el = document.getElementById(id); if(el) el.innerHTML = html; }
