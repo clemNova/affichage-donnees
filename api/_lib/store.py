@@ -217,17 +217,19 @@ def calcule_et_sauvegarde_snapshot() -> dict:
             ligne["da_peak_jour"] = peak
             ligne["da_peak_ecart_pct"] = calc.ecart_pct(peak, peak_ref)
 
-    # FCR et aFRR capacite : compares au meme mois l'annee precedente (pas a
-    # une moyenne glissante 30j) -- historique fourni separement par
+    # FCR, aFRR et mFRR capacite : compares au meme mois l'annee precedente
+    # (pas a une moyenne glissante 30j) -- historique fourni separement par
     # l'utilisateur dans hist_mensuel:<domaine>, cf. _valeur_mois_an_dernier.
+    # mFRR cote RTE ne remonte qu'au 20/10/2025, mais le CSV fourni par
+    # l'utilisateur couvre un historique plus long (mfrr_up_capa depuis
+    # 2021, mfrr_down_capa depuis 2026-05 seulement pour l'instant) -- le
+    # pill reste simplement absent tant que le mois de reference n'existe
+    # pas encore dans hist_mensuel:mfrr_down_capa, cf. echange utilisateur.
     _kpis_courbe_connue(ligne, "fcr", "fcr", jour, instant, mode="mois_an_dernier")
     for prefixe, nom_domaine in DIRECTIONS_CAPACITE.items():
         _kpis_courbe_connue(ligne, f"afrr_{prefixe}_capa", nom_domaine, jour, instant, mode="mois_an_dernier")
-    # mFRR : domaine trop recent (RTE ne publie cette capacite que depuis le
-    # 20/10/2025) pour une comparaison annuelle -- reste sur la moyenne
-    # glissante 30j standard.
     for prefixe, nom_domaine in DIRECTIONS_CAPACITE_MFRR.items():
-        _kpis_courbe_connue(ligne, f"mfrr_{prefixe}_capa", nom_domaine, jour, instant)
+        _kpis_courbe_connue(ligne, f"mfrr_{prefixe}_capa", nom_domaine, jour, instant, mode="mois_an_dernier")
 
     points_activation = kv.get_json("raw:afrr_activation", [])
     if points_activation:

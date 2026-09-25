@@ -133,11 +133,12 @@ les marqueurs "Min"/"Max" sur la courbe day-ahead restent affichés séparément
 métrique a la sienne (`mode` dans `store._kpis_courbe_connue`/`_reference_comparaison`) :
 - Prix moyen du jour / Base / Peak du jour : **vs veille** (J-1).
 - TB2 / TB4 : **vs 7 jours** glissants.
-- mFRR capacité : **vs 30 jours** glissants (historique RTE trop récent pour une comparaison annuelle).
-- FCR, aFRR capacité (hausse/baisse) : **vs même mois l'année précédente**
-  (cf. `hist_mensuel:<domaine>` ci-dessus — masqué comme pour un 30j
-  insuffisant tant que `/api/importer_historique_mensuel` n'a pas été appelé
-  au moins une fois, cf. section 5.1).
+- FCR, aFRR et mFRR capacité (hausse/baisse) : **vs même mois l'année précédente**
+  (cf. `hist_mensuel:<domaine>` ci-dessus — masqué tant que
+  `/api/importer_historique_mensuel` n'a pas été appelé au moins une fois,
+  cf. section 5.1, ou tant que le mois de référence n'existe pas encore
+  dans le CSV fourni : `hist_mensuel:mfrr_down_capa` ne couvre par exemple
+  que depuis 2026-05, donc pas de pill "Baisse" pour mFRR avant 2027).
 
 ## 1. Déployer sur Vercel (nécessite ton compte)
 

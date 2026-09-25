@@ -138,14 +138,18 @@
   }
   .crosshair-tip .k{color:var(--text-faint)}
 
-  /* Deux lignes (valeur, puis legende plus petite) plutot qu'une seule ligne
-     large -- evite le debordement des mini-boxes etroites (aFRR/mFRR) avec
-     des legendes longues comme "vs mois A-1". */
-  .pill{display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;font-family:var(--font-corps);font-weight:800;padding:3px 7px;border-radius:8px;line-height:1.3}
+  .pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-corps);font-size:.72rem;font-weight:800;padding:2px 7px;border-radius:999px;line-height:1.5;white-space:nowrap}
   .pill.up{color:var(--pos);background:color-mix(in srgb, var(--pos) 16%, transparent)}
   .pill.down{color:var(--res);background:color-mix(in srgb, var(--res) 16%, transparent)}
-  .pill-value{font-size:.72rem;white-space:nowrap}
-  .pill-cap{display:block;font-size:.58rem;color:var(--text-faint);font-weight:500;white-space:nowrap}
+  .pill-value{white-space:nowrap}
+  .pill-cap{font-size:.64rem;color:var(--text-faint);font-weight:500;margin-left:2px}
+
+  /* aFRR/mFRR seulement : mini-boxes a 2 colonnes plus etroites que les
+     autres -- legende "vs mois A-1"/"vs 30j" sur 2 lignes pour eviter le
+     debordement constate. Les autres pills (day-ahead, FCR) gardent le
+     format une ligne d'origine -- cf. echange utilisateur. */
+  .card.accent-res .pill, .card.accent-mfrr .pill{flex-direction:column;align-items:flex-start;gap:0;padding:3px 7px;border-radius:8px;line-height:1.3}
+  .card.accent-res .pill-cap, .card.accent-mfrr .pill-cap{display:block;font-size:.58rem;margin-left:0}
 
   /* --- Row 2 : Reserves --- */
   .row-reserves{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -536,6 +540,12 @@
   }
   function setText(id, texte){ const el = document.getElementById(id); if(el) el.textContent = texte; }
   function setHtml(id, html){ const el = document.getElementById(id); if(el) el.innerHTML = html; }
+  // Valeur numerique en plus gros, unite en plus petit -- utilise
+  // uniquement pour les mini-boxes aFRR/mFRR (cf. echange utilisateur).
+  function valeurUniteHtml(valeur, decimales, unite){
+    if(valeur === null || valeur === undefined || Number.isNaN(valeur)) return "—";
+    return `<span class="valeur-grande">${fmt(valeur,decimales)}</span><span class="unite-petite"> ${unite}</span>`;
+  }
 
   // Convertit la liste eparse {ts, prix} du jour en tableau de 96 cases
   // (index = quart d'heure depuis minuit local), trous = null.
@@ -621,9 +631,9 @@
     setHtml("fcr-moyenne-pill", pillHtml(snap.fcr_ecart_pct, "vs mois A-1"));
 
     // --- aFRR capacite ---
-    setText("afrr-up-moyenne", snap.afrr_up_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_up_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
+    setHtml("afrr-up-moyenne", valeurUniteHtml(snap.afrr_up_capa_moyenne_jour !== undefined ? snap.afrr_up_capa_moyenne_jour*PAR_JOUR : null, 0, "€/MW/jour"));
     setHtml("afrr-up-moyenne-pill", pillHtml(snap.afrr_up_capa_ecart_pct, "vs mois A-1"));
-    setText("afrr-down-moyenne", snap.afrr_down_capa_moyenne_jour !== undefined ? `${fmt(snap.afrr_down_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
+    setHtml("afrr-down-moyenne", valeurUniteHtml(snap.afrr_down_capa_moyenne_jour !== undefined ? snap.afrr_down_capa_moyenne_jour*PAR_JOUR : null, 0, "€/MW/jour"));
     setHtml("afrr-down-moyenne-pill", pillHtml(snap.afrr_down_capa_ecart_pct, "vs mois A-1"));
 
     // --- aFRR activation (corner box, compact) ---
@@ -637,9 +647,9 @@
     // --- mFRR capacite (nouveau domaine, pas encore assez d'historique pour
     // une comparaison annuelle -- reste sur vs 30j standard) ---
     setText("mfrr-up-moyenne", snap.mfrr_up_capa_moyenne_jour !== undefined ? `${fmt(snap.mfrr_up_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
-    setHtml("mfrr-up-moyenne-pill", pillHtml(snap.mfrr_up_capa_ecart_pct, "vs 30j"));
+    setHtml("mfrr-up-moyenne-pill", pillHtml(snap.mfrr_up_capa_ecart_pct, "vs mois A-1"));
     setText("mfrr-down-moyenne", snap.mfrr_down_capa_moyenne_jour !== undefined ? `${fmt(snap.mfrr_down_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
-    setHtml("mfrr-down-moyenne-pill", pillHtml(snap.mfrr_down_capa_ecart_pct, "vs 30j"));
+    setHtml("mfrr-down-moyenne-pill", pillHtml(snap.mfrr_down_capa_ecart_pct, "vs mois A-1"));
 
     // --- graphes ---
     // Les graphes restent en unite RTE native (€/MW/15min) -- pas le x96
