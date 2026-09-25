@@ -151,6 +151,14 @@
   .card.accent-res .pill, .card.accent-mfrr .pill{flex-direction:column;align-items:flex-start;gap:0;padding:3px 7px;border-radius:8px;line-height:1.3}
   .card.accent-res .pill-cap, .card.accent-mfrr .pill-cap{display:block;font-size:.58rem;margin-left:0}
 
+  /* aFRR/mFRR seulement : valeur numerique agrandie, unite reduite --
+     cf. echange utilisateur (scope volontairement limite a ces 2 cartes,
+     ne touche pas FCR ni le "Prix d'activation" fusionne dans aFRR). */
+  .card.accent-res .reserves-stats:not(.activation-inline) .mini-value .valeur-grande,
+  .card.accent-mfrr .mini-value .valeur-grande{font-size:1.55rem}
+  .card.accent-res .reserves-stats:not(.activation-inline) .mini-value .unite-petite,
+  .card.accent-mfrr .mini-value .unite-petite{font-size:.68rem;font-weight:500;color:var(--text-dim)}
+
   /* --- Row 2 : Reserves --- */
   .row-reserves{flex:1;min-height:0;display:flex;flex-direction:column}
 
@@ -646,9 +654,9 @@
 
     // --- mFRR capacite (nouveau domaine, pas encore assez d'historique pour
     // une comparaison annuelle -- reste sur vs 30j standard) ---
-    setText("mfrr-up-moyenne", snap.mfrr_up_capa_moyenne_jour !== undefined ? `${fmt(snap.mfrr_up_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
+    setHtml("mfrr-up-moyenne", valeurUniteHtml(snap.mfrr_up_capa_moyenne_jour !== undefined ? snap.mfrr_up_capa_moyenne_jour*PAR_JOUR : null, 0, "€/MW/jour"));
     setHtml("mfrr-up-moyenne-pill", pillHtml(snap.mfrr_up_capa_ecart_pct, "vs mois A-1"));
-    setText("mfrr-down-moyenne", snap.mfrr_down_capa_moyenne_jour !== undefined ? `${fmt(snap.mfrr_down_capa_moyenne_jour*PAR_JOUR,0)} €/MW/jour` : "—");
+    setHtml("mfrr-down-moyenne", valeurUniteHtml(snap.mfrr_down_capa_moyenne_jour !== undefined ? snap.mfrr_down_capa_moyenne_jour*PAR_JOUR : null, 0, "€/MW/jour"));
     setHtml("mfrr-down-moyenne-pill", pillHtml(snap.mfrr_down_capa_ecart_pct, "vs mois A-1"));
 
     // --- graphes ---
