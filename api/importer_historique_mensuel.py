@@ -1,5 +1,5 @@
-"""Import ponctuel de l'historique long FCR/aFRR/mFRR (prix de capacite en
-EUR/MW/jour, calcule pour un actif de reference 1 MW -- cf. echange
+"""Import ponctuel de l'historique long FCR/aFRR/mFRR (gains journaliers en
+EUR/MW/JOUR, calcules pour un actif de reference 1 MW -- cf. echange
 utilisateur) depuis `data/gains_capacitaires_journalier.csv`, fourni
 separement par l'utilisateur : RTE Open Data n'expose pas un historique aussi
 long via l'API (cf. `hist_mensuel:<domaine>` dans `store.py`).
@@ -8,7 +8,11 @@ Calcule des moyennes MENSUELLES par domaine et les ecrit dans un stockage
 PERMANENT (pas de purge, contrairement a `hist:<domaine>` limite a 35 jours) :
 `hist_mensuel:<domaine>` = {"YYYY-MM": moyenne}. Utilise par
 `store._valeur_mois_an_dernier` pour la comparaison "vs meme mois l'annee
-precedente" de FCR et aFRR capacite (`_kpis_courbe_connue(..., mode="mois_an_dernier")`).
+precedente" de FCR et aFRR capacite (`_kpis_courbe_connue(..., mode="mois_an_dernier")`),
+comparee a `{prefixe}_moyenne_jour` qui est dans l'unite NATIVE RTE
+(EUR/MW/15min, pas EUR/MW/jour) -- on DIVISE donc par PAR_JOUR (96) a
+l'import pour rester dans la meme unite, sinon l'ecart calcule est absurde
+(ex. -98%, un facteur ~96 d'ecart d'unite plutot qu'une vraie variation).
 
 Colonnes CSV -> domaine :
 - gain_fcr_eur -> fcr
@@ -41,6 +45,11 @@ CHEMIN_CSV = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "gains_capacitaires_journalier.csv"
 )
 
+# Prix RTE natif en EUR/MW/15min -- le CSV fournit des gains en EUR/MW/JOUR
+# (96 pas de 15 min) : diviser par cette constante ramene les deux sources a
+# la meme unite avant de les comparer (cf. docstring du module).
+PAR_JOUR = 96
+
 
 def _series_par_domaine(df: pd.DataFrame) -> dict[str, pd.Series]:
     afrr_up = df["gain_afrr_hausse_eur"].fillna(df["gain_afrr_symetrique_eur"])
@@ -66,7 +75,7 @@ def executer() -> dict:
         if serie.empty:
             resultats[domaine] = "aucune donnee dans le CSV"
             continue
-        moyennes_mensuelles = serie.groupby(serie.index.to_period("M")).mean()
+        moyennes_mensuelles = serie.groupby(serie.index.to_period("M")).mean() / PAR_JOUR
 
         hist_mensuel = kv.get_json(f"hist_mensuel:{domaine}", {})
         for periode, valeur in moyennes_mensuelles.items():
