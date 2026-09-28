@@ -398,17 +398,29 @@
   const MOCK_COGE = {
     peg: { prix: 70, serie7j: [69.2, 70.8, 71.5, 68.9, 69.4, 70.1, 70.6] }, // €/MWh PCS
     co2: { prix: 80, serie7j: [78.4, 79.1, 81.2, 82.0, 79.8, 78.9, 79.6] }, // €/tCO2
-    forwards: {
-      serre: {
-        m1: { base: 32.4, peak: 44.8 },
-        m2: { base: 35.1, peak: 47.6 },
-        q1: { base: 38.7, peak: 51.2 },
+    // Inputs forward (M+1/M+2/1er trimestre après M+2) pour recalculer le
+    // clean spark spread forward avec la même formule que le spot -- le gaz
+    // vient de NOOS dès que dispo (snap.peg_forward), élec/CO2 forward
+    // restent mock tant qu'il n'y a pas de pipeline dédiée. POC.
+    forwardInputsMock: {
+      gaz: { m1: 63.0, m2: 64.5, q1: 66.8 }, // €/MWh PCS -- repli si NOOS indispo
+      elec: {
+        m1: { base: 58.4, peak: 78.2 },
+        m2: { base: 61.1, peak: 82.6 },
+        q1: { base: 65.3, peak: 88.4 },
       },
-      indus: {
-        m1: { base: 41.9, peak: 55.3 },
-        m2: { base: 44.6, peak: 58.1 },
-        q1: { base: 48.2, peak: 62.4 },
+      co2: { m1: 82.0, m2: 83.1, q1: 85.4 }, // €/tCO2
+    },
+    // Mêmes inputs il y a 7 jours -- pour la pill de variation de chaque
+    // valeur forward. POC — à remplacer par un vrai historique.
+    forwardInputsRef7j: {
+      gaz: { m1: 62.0, m2: 63.8, q1: 65.9 },
+      elec: {
+        m1: { base: 57.1, peak: 76.5 },
+        m2: { base: 60.0, peak: 80.9 },
+        q1: { base: 63.9, peak: 86.7 },
       },
+      co2: { m1: 81.2, m2: 82.0, q1: 84.6 },
     },
     // Moyenne des 7 derniers jours (clean spark spread, €/MWh) -- pas
     // d'historique réel calculé côté back pour l'instant, valeurs plausibles
@@ -416,20 +428,6 @@
     cogeRef7j: {
       serreBase: 34.9, serrePeak: 49.2, serreSuperPeak: 58.4,
       indusBase: 39.8, indusPeak: 59.6, indusSuperPeak: 68.9,
-    },
-    // Forwards il y a 7 jours (même structure que `forwards`) -- pour la
-    // pill de variation de chaque produit forward. POC — à remplacer.
-    forwardsRef7j: {
-      serre: {
-        m1: { base: 31.8, peak: 46.0 },
-        m2: { base: 34.4, peak: 48.9 },
-        q1: { base: 39.5, peak: 50.1 },
-      },
-      indus: {
-        m1: { base: 43.0, peak: 54.2 },
-        m2: { base: 43.9, peak: 59.0 },
-        q1: { base: 47.0, peak: 63.8 },
-      },
     },
     pp: { joursEcoules: 5, total: 22, enPP: false },
     mfrr: { hausseMoyenne: 62.3, hausseEcartPct: 8.4, baisseMoyenne: 41.7, baisseEcartPct: -5.2 },
@@ -741,22 +739,47 @@
       `<td class="fwd-spacer"></td>${celluleFwd(indus.peak, indusRef.peak)}${celluleFwd(indus.base, indusRef.base)}</tr>`;
   }
 
-  function construitForwards(){
-    const fwd = MOCK_COGE.forwards, ref = MOCK_COGE.forwardsRef7j;
-    document.getElementById("fwd-body").innerHTML =
-      ligneFwd(labelMoisPlus(1), fwd.serre.m1, fwd.indus.m1, ref.serre.m1, ref.indus.m1) +
-      ligneFwd(labelMoisPlus(2), fwd.serre.m2, fwd.indus.m2, ref.serre.m2, ref.indus.m2) +
-      ligneFwd(labelTrimestreApresM2(), fwd.serre.q1, fwd.indus.q1, ref.serre.q1, ref.indus.q1);
+  // Recalcule le clean spark spread forward (Base/Peak) pour une période
+  // ("m1"/"m2"/"q1") et un facteur gaz/élec donnés, à partir des inputs
+  // élec/gaz/CO2 de cette période -- même formule que le spot du jour.
+  function calculeCogeForward(inputs, periode, facteur){
+    const gaz = inputs.gaz[periode], elec = inputs.elec[periode], co2 = inputs.co2[periode];
+    return {
+      base: cleanSparkSpread(elec.base, gaz, co2, facteur),
+      peak: cleanSparkSpread(elec.peak, gaz, co2, facteur),
+    };
   }
 
-  function render(spot, pegReel){
+  // gazReel = {m1, m2, q1} depuis /api/kpis (NOOS) si le pipeline forward a
+  // déjà tourné -- remplace le gaz mock période par période, élec/CO2
+  // forward restent mock tant qu'il n'y a pas de pipeline dédiée.
+  function construitForwards(gazReel){
+    const inputs = MOCK_COGE.forwardInputsMock;
+    const gaz = Object.assign({}, inputs.gaz, gazReel || {});
+    const inputsCourants = Object.assign({}, inputs, { gaz });
+    const ref = MOCK_COGE.forwardInputsRef7j;
+
+    document.getElementById("fwd-body").innerHTML =
+      ligneFwd(labelMoisPlus(1),
+        calculeCogeForward(inputsCourants, "m1", FACTEUR_SERRE), calculeCogeForward(inputsCourants, "m1", FACTEUR_INDUS),
+        calculeCogeForward(ref, "m1", FACTEUR_SERRE), calculeCogeForward(ref, "m1", FACTEUR_INDUS)) +
+      ligneFwd(labelMoisPlus(2),
+        calculeCogeForward(inputsCourants, "m2", FACTEUR_SERRE), calculeCogeForward(inputsCourants, "m2", FACTEUR_INDUS),
+        calculeCogeForward(ref, "m2", FACTEUR_SERRE), calculeCogeForward(ref, "m2", FACTEUR_INDUS)) +
+      ligneFwd(labelTrimestreApresM2(),
+        calculeCogeForward(inputsCourants, "q1", FACTEUR_SERRE), calculeCogeForward(inputsCourants, "q1", FACTEUR_INDUS),
+        calculeCogeForward(ref, "q1", FACTEUR_SERRE), calculeCogeForward(ref, "q1", FACTEUR_INDUS));
+  }
+
+  function render(spot, reel){
+    reel = reel || {};
     const maintenant = new Date();
     const nowHour = maintenant.getHours() + maintenant.getMinutes()/60 + maintenant.getSeconds()/3600;
 
     // --- Peg gaz : prix réel (NOOS, via /api/kpis) si le pipeline a déjà
     // tourné, sinon repli sur le mock -- même logique que le spot élec.
-    // POC — la partie mock disparaîtra une fois le cron NOOS en prod. ---
-    const pegPrix = pegReel ? pegReel.prix : MOCK_COGE.peg.prix;
+    // POC — la partie mock disparaîtra une fois les pipelines réelles en prod. ---
+    const pegPrix = reel.peg ? reel.peg.prix : MOCK_COGE.peg.prix;
 
     // --- Date du jour (cartes Cogé serre/industriel) + horloge date+heure
     // (graphes spark spread/clean spark spread, comme le graphe day-ahead du
@@ -809,50 +832,72 @@
     setText("pp-status", MOCK_COGE.pp.enPP ? "Aujourd'hui : jour PP" : "Aujourd'hui : hors PP");
     document.getElementById("pp-card").classList.toggle("actif", MOCK_COGE.pp.enPP);
 
-    // --- mFRR (mêmes valeurs/légende que le dashboard BESS -- cf. échange
-    // utilisateur, abandonne "vs saison précédente" au profit de "vs mois A-1"). ---
-    setText("mfrr-up-moyenne", `${fmt(MOCK_COGE.mfrr.hausseMoyenne,1)} €/MWh`);
-    setHtml("mfrr-up-moyenne-pill", pillHtml(MOCK_COGE.mfrr.hausseEcartPct, "vs mois A-1"));
-    setText("mfrr-down-moyenne", `${fmt(MOCK_COGE.mfrr.baisseMoyenne,1)} €/MWh`);
-    setHtml("mfrr-down-moyenne-pill", pillHtml(MOCK_COGE.mfrr.baisseEcartPct, "vs mois A-1"));
+    // --- mFRR : valeurs réelles (pipeline RTE déjà utilisé par le dashboard
+    // BESS, via /api/kpis) si dispo, sinon repli mock -- cf. échange
+    // utilisateur. Unité réelle = €/MW/jour (prix de capacité, pas €/MWh --
+    // corrige au passage l'unité du mock qui était fausse). ---
+    const mfrr = reel.mfrr || MOCK_COGE.mfrr;
+    setText("mfrr-up-moyenne", `${fmt(mfrr.hausseMoyenne,0)} €/MW/jour`);
+    setHtml("mfrr-up-moyenne-pill", pillHtml(mfrr.hausseEcartPct, "vs mois A-1"));
+    setText("mfrr-down-moyenne", `${fmt(mfrr.baisseMoyenne,0)} €/MW/jour`);
+    setHtml("mfrr-down-moyenne-pill", pillHtml(mfrr.baisseEcartPct, "vs mois A-1"));
 
     // --- Peg / CO2 vs 7 derniers jours ---
     setText("peg-valeur", `${fmt(pegPrix,1)} €/MWh`);
-    setHtml("peg-pill", pillHtml(pegReel ? pegReel.ecartPct : ecartPct(MOCK_COGE.peg.prix, moyenne(MOCK_COGE.peg.serie7j)), "vs 7j"));
+    setHtml("peg-pill", pillHtml(reel.peg ? reel.peg.ecartPct : ecartPct(MOCK_COGE.peg.prix, moyenne(MOCK_COGE.peg.serie7j)), "vs 7j"));
     setText("co2-valeur", `${fmt(MOCK_COGE.co2.prix,1)} €/tCO2`);
     setHtml("co2-pill", pillHtml(ecartPct(MOCK_COGE.co2.prix, moyenne(MOCK_COGE.co2.serie7j)), "vs 7j"));
 
-    // --- Forwards ---
-    construitForwards();
+    // --- Forwards (gaz réel NOOS si dispo, reste mock sinon) ---
+    construitForwards(reel.forwardGaz);
   }
 
+  // Prix de capacité RTE natif en €/MW/15min -- x96 (nb de quarts d'heure/
+  // jour) pour un affichage en €/MW/jour, même convention que le dashboard
+  // BESS (cf. index.html).
+  const PAR_JOUR = 96;
+
   let dernierSpot = null;
-  let dernierPeg = null;
+  let dernierReel = {};
 
   async function chargerEtRendre(){
-    let spot = null, peg = null;
+    let spot = null;
+    const reel = {};
     try{
       const reponse = await fetch("/api/kpis", {cache:"no-store"});
       if(reponse.ok){
         const snap = await reponse.json();
         if(snap.series && snap.series.da && snap.series.da.length) spot = remplitJournee(snap.series.da);
         if(snap.peg_prix !== undefined && snap.peg_prix !== null){
-          peg = {prix: snap.peg_prix, ecartPct: snap.peg_ecart_pct};
+          reel.peg = {prix: snap.peg_prix, ecartPct: snap.peg_ecart_pct};
+        }
+        if(snap.peg_forward){
+          reel.forwardGaz = snap.peg_forward; // {m1, m2, q1}, €/MWh PCS
+        }
+        // mFRR : déjà alimenté par le pipeline RTE du dashboard BESS, pas
+        // besoin d'une pipeline dédiée pour Cogé -- cf. échange utilisateur.
+        if(snap.mfrr_up_capa_moyenne_jour !== undefined && snap.mfrr_down_capa_moyenne_jour !== undefined){
+          reel.mfrr = {
+            hausseMoyenne: snap.mfrr_up_capa_moyenne_jour * PAR_JOUR,
+            hausseEcartPct: snap.mfrr_up_capa_ecart_pct,
+            baisseMoyenne: snap.mfrr_down_capa_moyenne_jour * PAR_JOUR,
+            baisseEcartPct: snap.mfrr_down_capa_ecart_pct,
+          };
         }
       }
     }catch(erreur){
-      console.warn("Spot/Peg réels indisponibles, utilisation d'un profil de secours :", erreur);
+      console.warn("Données réelles indisponibles, repli sur les mocks/profil de secours :", erreur);
     }
     dernierSpot = spot || serieSpotSecours();
-    dernierPeg = peg;
-    render(dernierSpot, dernierPeg);
+    dernierReel = reel;
+    render(dernierSpot, dernierReel);
   }
 
   // Redessin LOCAL (horloge + repère "maintenant" sur les graphes), sans
   // appel réseau -- rejoue simplement render() avec l'heure actuelle sur le
   // dernier spot connu, même principe que le dashboard BESS.
   function retracerLocalement(){
-    if(dernierSpot) render(dernierSpot, dernierPeg);
+    if(dernierSpot) render(dernierSpot, dernierReel);
   }
 
   const btnFullscreen = document.getElementById("btn-fullscreen");

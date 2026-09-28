@@ -143,3 +143,14 @@ def fetch_peg_spot() -> list[dict]:
         return []
     premier = points[0]
     return [{"ts": premier["timestamp"], "prix": float(premier["value"])}]
+
+
+def fetch_peg_forward(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list[dict]:
+    """Courbe forward PEG (gaz naturel, EUR/MWh PCS) restreinte a
+    [date_debut, date_fin[ -- meme endpoint NOOS que le spot, filtre via
+    start_at/end_at (cf. echange utilisateur). Peut renvoyer plusieurs points
+    selon la granularite NOOS -- a l'appelant de moyenner sur la fenetre."""
+    params = {"start_at": date_debut.isoformat(), "end_at": date_fin.isoformat()}
+    donnees = noos_client.appelle_api_noos_peg(params)
+    points = donnees.get("time_series") or []
+    return [{"ts": p["timestamp"], "prix": float(p["value"])} for p in points]

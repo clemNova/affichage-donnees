@@ -95,6 +95,14 @@ def maj_prix_journalier(nom_domaine: str, jour_iso: str, prix: float) -> None:
     kv.set_json(f"hist:{nom_domaine}", _prune_hist(hist))
 
 
+def maj_forward_gaz(nom_domaine: str, valeurs: dict) -> None:
+    """Ecrase forward:<domaine> avec les dernieres valeurs forward connues
+    (pas d'historique -- les fenetres "M+1/M+2/1er trimestre complet apres
+    M+2" sont relatives a AUJOURD'HUI, donc glissent avec le calendrier a
+    chaque execution du cron, cf. cron_daily._fenetre_mois_plus)."""
+    kv.set_json(f"forward:{nom_domaine}", valeurs)
+
+
 def maj_activation(nouveaux_points: list[dict]) -> int:
     """Fusionne les nouveaux points d'activation aFRR avec le cache existant
     (dedoublonne par timestamp, garde les ~2 derniers jours) -- contrairement
@@ -254,6 +262,12 @@ def calcule_et_sauvegarde_snapshot() -> dict:
         ref_peg_7j = calc.moyenne_nj_glissante(hist_peg_series, jour, 7)
         ligne["peg_prix"] = prix_peg
         ligne["peg_ecart_pct"] = calc.ecart_pct(prix_peg, ref_peg_7j)
+
+    # Forward PEG (NOOS) : {"m1": prix, "m2": prix, "q1": prix}, EUR/MWh PCS
+    # -- ecrit par cron_daily (cf. maj_forward_gaz), pas d'historique propre.
+    forward_peg = kv.get_json("forward:noos_peg", {})
+    if forward_peg:
+        ligne["peg_forward"] = forward_peg
 
     points_activation = kv.get_json("raw:afrr_activation", [])
     if points_activation:
