@@ -186,8 +186,8 @@
 
     <section class="row-spreads">
       <div class="card accent-cogen spread-col">
-        <button class="toggle-placeholder" disabled title="Bientôt disponible">Choisir les rendements ?</button>
-        <span class="section-title" style="margin-left:150px"><em>Spark spread</em> — ×3 rendements</span>
+        <button class="toggle-placeholder" disabled title="Bientôt disponible">Choisir le facteur gaz/élec ?</button>
+        <span class="section-title" style="margin-left:150px"><em>Spark spread</em> — ×3 facteurs gaz/élec</span>
         <div class="chart-wrap" id="chart-spark"></div>
         <div class="legend" id="legend-spark"></div>
       </div>
@@ -195,14 +195,14 @@
       <div class="valeurs-instant-col">
         <button class="toggle-placeholder" disabled title="Bientôt disponible">Elc ou chaleur ?</button>
         <div class="card kpi-box">
-          <span class="kpi-label">Cogé serre <span class="badge-rendement">η 1,8</span></span>
+          <span class="kpi-label">Cogé serre <span class="badge-rendement">k 1,8</span></span>
           <div class="tb-row">
             <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="serre-base">—</span></div>
             <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="serre-peak">—</span></div>
           </div>
         </div>
         <div class="card kpi-box">
-          <span class="kpi-label">Cogé indus <span class="badge-rendement">η 2,2</span></span>
+          <span class="kpi-label">Cogé indus <span class="badge-rendement">k 2,2</span></span>
           <div class="tb-row">
             <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="indus-base">—</span></div>
             <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="indus-peak">—</span></div>
@@ -212,10 +212,10 @@
       </div>
 
       <div class="card accent-cogen spread-col">
-        <span class="section-title"><em>Clean spark spread</em> — ×3 rendements, +CO2</span>
+        <span class="section-title"><em>Clean spark spread</em> — ×3 facteurs gaz/élec, +CO2</span>
         <div class="chart-wrap" id="chart-clean-spark"></div>
         <div class="legend" id="legend-clean-spark"></div>
-        <span class="clean-note">Formule POC : CSS = P_elec − (P_gaz + 0,185×P_CO2) / rendement</span>
+        <span class="clean-note">Formule POC : CSS = P_elec − (P_gaz[PCI] + 0,185×P_CO2) × k — Peg converti PCS→PCI (×1,11)</span>
       </div>
     </section>
 
@@ -275,11 +275,21 @@
   const LOCAL_TICK_MS = 60 * 1000;
 
   // --- Hypothèses métier POC — cf. plan / échange utilisateur ---
-  const RENDEMENTS = [1.8, 2.2, 3.2];
-  const RENDEMENT_SERRE = 1.8;
-  const RENDEMENT_INDUS = 2.2;
+  // Ce ne sont PAS des rendements (qui seraient <1) mais l'inverse : le
+  // facteur multiplicateur gaz/élec (MWh_gaz consommé, base PCI, par MWh_elec
+  // produit) -- cf. correction utilisateur.
+  const FACTEURS_GAZ_ELEC = [1.8, 2.2, 3.2];
+  const FACTEUR_SERRE = 1.8;
+  const FACTEUR_INDUS = 2.2;
   const FACTEUR_EMISSION_CO2 = 0.185; // tCO2 / MWh_gaz (PCI, turbine standard)
-  const COULEURS_RENDEMENT = ["var(--rdt-1)", "var(--rdt-2)", "var(--rdt-3)"];
+  const COULEURS_FACTEUR = ["var(--rdt-1)", "var(--rdt-2)", "var(--rdt-3)"];
+  // Le Peg (MOCK_COGE.peg.prix) est cote en €/MWh PCS, mais le facteur
+  // gaz/elec ci-dessus est sur base PCI -- conversion necessaire pour rester
+  // coherent, cf. remarque utilisateur "attention aux rendements PCI".
+  // Ratio usuel gaz naturel (a confirmer si une valeur contractuelle precise
+  // existe) : 1 MWh PCS ~= 1,11 MWh PCI.
+  const RATIO_PCS_PCI = 1.11;
+  function prixGazPci(prixGazPcs){ return prixGazPcs * RATIO_PCS_PCI; }
 
   // Données non encore disponibles côté back (gaz, CO2, forwards, PP,
   // comparaison saisonnière mFRR) — toutes regroupées ici pour que le futur
@@ -472,18 +482,20 @@
   }
 
   // --- Formules métier (cf. échange utilisateur) ---
-  function sparkSpread(pElec, pGaz, rendement){
+  // facteur = MWh_gaz (PCI) par MWh_elec -- donc on MULTIPLIE par facteur,
+  // pas de division (contrairement a un vrai rendement electrique <1).
+  function sparkSpread(pElec, pGazPcs, facteur){
     if(pElec === null || pElec === undefined) return null;
-    return pElec - pGaz/rendement;
+    return pElec - prixGazPci(pGazPcs) * facteur;
   }
-  function cleanSparkSpread(pElec, pGaz, pCo2, rendement){
+  function cleanSparkSpread(pElec, pGazPcs, pCo2, facteur){
     if(pElec === null || pElec === undefined) return null;
-    return pElec - (pGaz + FACTEUR_EMISSION_CO2*pCo2) / rendement;
+    return pElec - (prixGazPci(pGazPcs) + FACTEUR_EMISSION_CO2*pCo2) * facteur;
   }
 
   function construitLegende(elId, labels, couleurs){
     const el = document.getElementById(elId);
-    el.innerHTML = labels.map((l,i)=>`<span class="legend-item"><span class="legend-swatch" style="background:${couleurs[i]}"></span>η ${l}</span>`).join("");
+    el.innerHTML = labels.map((l,i)=>`<span class="legend-item"><span class="legend-swatch" style="background:${couleurs[i]}"></span>k ${l}</span>`).join("");
   }
 
   // Moyenne 15 min sur la fenêtre horaire [hDebut, hFin) -- même convention
@@ -505,14 +517,14 @@
     const fwd = MOCK_COGE.forwards;
     document.getElementById("fwd-grid").innerHTML = `
       <div class="fwd-group">
-        <span class="fwd-group-label">Serre (η ${RENDEMENT_SERRE})</span>
+        <span class="fwd-group-label">Serre (k ${FACTEUR_SERRE})</span>
         <table class="fwd-table">
           <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
           <tbody>${ligneFwd(fwd.serre.m1, fwd.serre.m2, fwd.serre.q1)}</tbody>
         </table>
       </div>
       <div class="fwd-group">
-        <span class="fwd-group-label">Indus (η ${RENDEMENT_INDUS})</span>
+        <span class="fwd-group-label">Indus (k ${FACTEUR_INDUS})</span>
         <table class="fwd-table">
           <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
           <tbody>${ligneFwd(fwd.indus.m1, fwd.indus.m2, fwd.indus.q1)}</tbody>
@@ -521,24 +533,24 @@
   }
 
   function render(spot){
-    // --- Courbes spark spread / clean spark spread, ×3 rendements ---
-    const seriesSpark = RENDEMENTS.map(r => spot.map(p => sparkSpread(p, MOCK_COGE.peg.prix, r)));
-    const seriesClean = RENDEMENTS.map(r => spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, r)));
+    // --- Courbes spark spread / clean spark spread, ×3 facteurs gaz/élec ---
+    const seriesSpark = FACTEURS_GAZ_ELEC.map(k => spot.map(p => sparkSpread(p, MOCK_COGE.peg.prix, k)));
+    const seriesClean = FACTEURS_GAZ_ELEC.map(k => spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, k)));
 
-    buildChart("chart-spark", seriesSpark, {stroke:COULEURS_RENDEMENT, labels:RENDEMENTS.map(r=>`η ${r}`)}, {
-      unit:"€/MWh", ariaLabel:"Spark spread sur la journée, pour 3 rendements",
+    buildChart("chart-spark", seriesSpark, {stroke:COULEURS_FACTEUR, labels:FACTEURS_GAZ_ELEC.map(k=>`k ${k}`)}, {
+      unit:"€/MWh", ariaLabel:"Spark spread sur la journée, pour 3 facteurs gaz/élec",
     });
-    buildChart("chart-clean-spark", seriesClean, {stroke:COULEURS_RENDEMENT, labels:RENDEMENTS.map(r=>`η ${r}`)}, {
-      unit:"€/MWh", ariaLabel:"Clean spark spread sur la journée, pour 3 rendements",
+    buildChart("chart-clean-spark", seriesClean, {stroke:COULEURS_FACTEUR, labels:FACTEURS_GAZ_ELEC.map(k=>`k ${k}`)}, {
+      unit:"€/MWh", ariaLabel:"Clean spark spread sur la journée, pour 3 facteurs gaz/élec",
     });
-    construitLegende("legend-spark", RENDEMENTS, COULEURS_RENDEMENT);
-    construitLegende("legend-clean-spark", RENDEMENTS, COULEURS_RENDEMENT);
+    construitLegende("legend-spark", FACTEURS_GAZ_ELEC, COULEURS_FACTEUR);
+    construitLegende("legend-clean-spark", FACTEURS_GAZ_ELEC, COULEURS_FACTEUR);
 
     // --- Valeurs instantanées cogé serre / indus (clean spark spread, cf.
     // note affichée : la valeur "réelle" pour une décision de production doit
     // intégrer le coût carbone, pas seulement le spread brut). ---
-    const cleanSerre = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, RENDEMENT_SERRE));
-    const cleanIndus = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, RENDEMENT_INDUS));
+    const cleanSerre = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, FACTEUR_SERRE));
+    const cleanIndus = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, FACTEUR_INDUS));
     setText("serre-base", `${fmt(moyenne(cleanSerre),1)} €/MWh`);
     setText("serre-peak", `${fmt(moyenneFenetre(cleanSerre,8,20),1)} €/MWh`);
     setText("indus-base", `${fmt(moyenne(cleanIndus),1)} €/MWh`);
