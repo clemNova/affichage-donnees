@@ -151,11 +151,14 @@
      hausse/baisse tiennent bien dedans -- cf. échange utilisateur. */
   .pp-card{flex:.5;align-items:center;justify-content:center;text-align:center;gap:2px;transition:background-color .2s,border-color .2s}
   .mfrr-card{flex:1.6}
+  /* Titre à gauche, statut ("Aujourd'hui : jour PP") à droite sur la même
+     ligne, plutôt qu'en dessous -- cf. échange utilisateur. */
+  .pp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}
   .pp-counter{display:flex;align-items:baseline;justify-content:center;gap:8px}
   .pp-counter-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums;line-height:1}
   .pp-counter-total{font-size:.85rem;color:var(--text-faint);font-weight:500}
   .pp-counter-label{font-size:.7rem;color:var(--text-faint)}
-  .pp-status{font-family:var(--font-titres);font-size:.78rem;font-weight:700;color:var(--text-faint);margin-top:2px}
+  .pp-status{font-family:var(--font-titres);font-size:.72rem;font-weight:700;color:var(--text-faint);white-space:nowrap}
   .pp-card.actif{background:var(--novawatt-orange);border-color:var(--novawatt-orange)}
   .pp-card.actif .section-title,.pp-card.actif .section-title em,.pp-card.actif .pp-counter-value,
   .pp-card.actif .pp-counter-total,.pp-card.actif .pp-counter-label,.pp-card.actif .pp-status{color:#1E3872}
@@ -242,12 +245,14 @@
     <section class="row-indicateurs">
       <div class="indic-group pp-mfrr-group">
         <div class="card indic-col pp-card" id="pp-card">
-          <span class="section-title"><em>Jours</em> Pointe (PP)</span>
+          <div class="pp-head">
+            <span class="section-title"><em>Jours</em> Pointe (PP)</span>
+            <span class="pp-status" id="pp-status">—</span>
+          </div>
           <div class="pp-counter">
             <span class="pp-counter-value"><span id="pp-jours">—</span><span class="pp-counter-total" id="pp-total"></span></span>
           </div>
           <span class="pp-counter-label">jours PP écoulés cette saison</span>
-          <span class="pp-status" id="pp-status">—</span>
         </div>
 
         <div class="card accent-mfrr indic-col mfrr-card">
