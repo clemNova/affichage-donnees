@@ -158,20 +158,22 @@
 
   /* Carte forward plus large que les 3 autres colonnes de la rangée du bas. */
   .fwd-card{flex:2}
-  /* Sous-cases distinctes Serre / Indus (plutôt qu'un simple partage de
-     colonnes dans une table) -- cf. échange utilisateur. */
-  .fwd-boxes{display:flex;gap:12px;margin-top:8px;flex:1;min-height:0}
-  .fwd-box{flex:1;background:var(--panel-2);border:1px solid var(--line-muted);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
-  .fwd-box-label{font-family:var(--font-titres);font-size:.8rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
-  .fwd-table{width:100%;border-collapse:collapse;font-family:var(--font-corps);font-variant-numeric:tabular-nums}
-  .fwd-table th,.fwd-table td{padding:4px 6px;text-align:right;font-size:.8rem}
-  .fwd-table thead th{color:var(--text-faint);font-family:var(--font-titres);font-size:.62rem;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
-  .fwd-table tbody th{text-align:left;color:var(--text-dim);font-family:var(--font-titres);font-weight:500;font-size:.75rem}
+  /* Table unique (produit à gauche, puis Serre/Indus) plutôt que 2 sous-cases
+     -- plus de place pour des valeurs grandes et lisibles, cf. échange
+     utilisateur ("plus grand et visible"). */
+  .fwd-table{width:100%;margin-top:8px;border-collapse:collapse;font-family:var(--font-corps);font-variant-numeric:tabular-nums}
+  .fwd-table th,.fwd-table td{padding:8px 16px;text-align:right;font-size:1.05rem}
+  .fwd-table thead tr:first-child th{color:var(--text);font-family:var(--font-titres);font-size:.85rem;font-weight:700;padding-bottom:4px;text-align:right}
+  .fwd-table thead tr:first-child th:first-child{text-align:left}
+  .fwd-table thead tr:last-child th{color:var(--text-faint);font-family:var(--font-titres);font-size:.68rem;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
+  .fwd-table tbody th{text-align:left;color:var(--text-dim);font-family:var(--font-titres);font-weight:500;font-size:.9rem}
   .fwd-table tbody tr:not(:last-child) td,.fwd-table tbody tr:not(:last-child) th{border-bottom:1px solid var(--line-muted)}
+  /* Séparation visuelle entre le bloc Serre et le bloc Indus. */
+  .fwd-table th:nth-child(4),.fwd-table td:nth-child(4){border-left:1px solid var(--line-muted)}
 
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
-    .row-spreads,.row-indicateurs,.indic-group,.fwd-boxes{flex-direction:column}
+    .row-spreads,.row-indicateurs,.indic-group{flex-direction:column}
     main.dashboard{gap:20px}
   }
 </style>
@@ -266,22 +268,13 @@
 
       <div class="card indic-col fwd-card">
         <span class="section-title">Forward <em>clean spark spread</em></span>
-        <div class="fwd-boxes">
-          <div class="fwd-box">
-            <span class="fwd-box-label">Serre <span class="badge-rendement">k 1,8</span></span>
-            <table class="fwd-table">
-              <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
-              <tbody id="fwd-body-serre"></tbody>
-            </table>
-          </div>
-          <div class="fwd-box">
-            <span class="fwd-box-label">Indus <span class="badge-rendement">k 2,2</span></span>
-            <table class="fwd-table">
-              <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
-              <tbody id="fwd-body-indus"></tbody>
-            </table>
-          </div>
-        </div>
+        <table class="fwd-table">
+          <thead>
+            <tr><th>Produit</th><th colspan="2">Serre — k 1,8</th><th colspan="2">Indus — k 2,2</th></tr>
+            <tr><th></th><th>Base</th><th>Peak</th><th>Base</th><th>Peak</th></tr>
+          </thead>
+          <tbody id="fwd-body"></tbody>
+        </table>
       </div>
     </section>
 
@@ -528,18 +521,18 @@
     return moyenne(sousEnsemble);
   }
 
-  function ligneFwd(label, entree){
-    return `<tr><th>${label}</th><td>${fmt(entree.base,1)}</td><td>${fmt(entree.peak,1)}</td></tr>`;
+  // Une ligne = un produit (maturité), Serre puis Indus côte à côte dans la
+  // même table -- plus grand/visible qu'en 2 sous-cases, cf. échange utilisateur.
+  function ligneFwd(produit, serre, indus){
+    return `<tr><th>${produit}</th><td>${fmt(serre.base,1)}</td><td>${fmt(serre.peak,1)}</td><td>${fmt(indus.base,1)}</td><td>${fmt(indus.peak,1)}</td></tr>`;
   }
 
-  // Sous-case Serre et sous-case Indus remplies séparément (2 tables
-  // distinctes, pas une seule table partagée) -- cf. échange utilisateur.
   function construitForwards(){
     const fwd = MOCK_COGE.forwards;
-    document.getElementById("fwd-body-serre").innerHTML =
-      ligneFwd("M+1", fwd.serre.m1) + ligneFwd("M+2", fwd.serre.m2) + ligneFwd("Q+1", fwd.serre.q1);
-    document.getElementById("fwd-body-indus").innerHTML =
-      ligneFwd("M+1", fwd.indus.m1) + ligneFwd("M+2", fwd.indus.m2) + ligneFwd("Q+1", fwd.indus.q1);
+    document.getElementById("fwd-body").innerHTML =
+      ligneFwd("M+1", fwd.serre.m1, fwd.indus.m1) +
+      ligneFwd("M+2", fwd.serre.m2, fwd.indus.m2) +
+      ligneFwd("Q+1", fwd.serre.q1, fwd.indus.q1);
   }
 
   function render(spot){
