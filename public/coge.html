@@ -124,8 +124,8 @@
 
   /* Contour de couleur reliant chaque carte à sa courbe sur les graphes
      spark spread (k 1,8 = vert, k 2,2 = bleu clair) -- cf. échange utilisateur. */
-  .ref-serre{border-color:var(--rdt-1)}
-  .ref-indus{border-color:var(--rdt-2)}
+  .ref-serre{border-color:var(--rdt-1);border-width:2px}
+  .ref-indus{border-color:var(--rdt-2);border-width:2px}
 
   /* --- Rangée 1 : spark spread / clean spark spread --- */
   .row-spreads{flex:1.2;min-height:0;display:flex;gap:16px}
@@ -137,7 +137,6 @@
      cartes restent lisibles en colonne étroite -- cf. échange utilisateur. */
   .kpi-box .kpi-meta{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
   .kpi-box .kpi-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums}
-  .badge-rendement{font-family:var(--font-corps);font-size:.68rem;font-weight:500;color:var(--text-faint);background:var(--panel-muted);border-radius:999px;padding:1px 8px}
 
   /* --- Rangée 2 : indicateurs --- */
   .row-indicateurs{flex:1;min-height:0;display:flex;gap:16px}
@@ -199,16 +198,16 @@
   /* Bordures colorées : vert pour Serre (k 1,8), bleu clair pour Industriels
      (k 2,2) -- mêmes couleurs que les courbes des graphes, cf. échange
      utilisateur. */
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(2),.fwd-table tbody td:nth-child(2){border-left:1px solid var(--rdt-1)}
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3){border-right:1px solid var(--rdt-1)}
-  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5){border-left:1px solid var(--rdt-2)}
-  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(6),.fwd-table tbody td:nth-child(6){border-right:1px solid var(--rdt-2)}
-  .fwd-table thead tr:first-child th:nth-child(2){border-top:1px solid var(--rdt-1);border-radius:14px 14px 0 0}
-  .fwd-table thead tr:first-child th:nth-child(4){border-top:1px solid var(--rdt-2);border-radius:14px 14px 0 0}
-  .fwd-table tbody tr:last-child td:nth-child(2){border-bottom:1px solid var(--rdt-1);border-radius:0 0 0 14px}
-  .fwd-table tbody tr:last-child td:nth-child(3){border-bottom:1px solid var(--rdt-1);border-radius:0 0 14px 0}
-  .fwd-table tbody tr:last-child td:nth-child(5){border-bottom:1px solid var(--rdt-2);border-radius:0 0 0 14px}
-  .fwd-table tbody tr:last-child td:nth-child(6){border-bottom:1px solid var(--rdt-2);border-radius:0 0 14px 0}
+  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(2),.fwd-table tbody td:nth-child(2){border-left:2px solid var(--rdt-1)}
+  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3){border-right:2px solid var(--rdt-1)}
+  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5){border-left:2px solid var(--rdt-2)}
+  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(6),.fwd-table tbody td:nth-child(6){border-right:2px solid var(--rdt-2)}
+  .fwd-table thead tr:first-child th:nth-child(2){border-top:2px solid var(--rdt-1);border-radius:14px 14px 0 0}
+  .fwd-table thead tr:first-child th:nth-child(4){border-top:2px solid var(--rdt-2);border-radius:14px 14px 0 0}
+  .fwd-table tbody tr:last-child td:nth-child(2){border-bottom:2px solid var(--rdt-1);border-radius:0 0 0 14px}
+  .fwd-table tbody tr:last-child td:nth-child(3){border-bottom:2px solid var(--rdt-1);border-radius:0 0 14px 0}
+  .fwd-table tbody tr:last-child td:nth-child(5){border-bottom:2px solid var(--rdt-2);border-radius:0 0 0 14px}
+  .fwd-table tbody tr:last-child td:nth-child(6){border-bottom:2px solid var(--rdt-2);border-radius:0 0 14px 0}
 
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
@@ -291,7 +290,7 @@
 
       <div class="indic-group serre-indus-group">
         <div class="card indic-col kpi-box ref-serre">
-          <span class="kpi-label">Cogé serre <span class="badge-rendement">k 1,8</span> <span class="section-date" id="date-serre"></span></span>
+          <span class="kpi-label">Cogé serre <span class="section-date" id="date-serre"></span></span>
           <div class="tb-row">
             <div class="tb-item">
               <span class="tb-item-label">Base</span>
@@ -306,7 +305,7 @@
           </div>
         </div>
         <div class="card indic-col kpi-box ref-indus">
-          <span class="kpi-label">Cogé industriel <span class="badge-rendement">k 2,2</span> <span class="section-date" id="date-indus"></span></span>
+          <span class="kpi-label">Cogé industriel <span class="section-date" id="date-indus"></span></span>
           <div class="tb-row">
             <div class="tb-item">
               <span class="tb-item-label">Base</span>
