@@ -141,21 +141,28 @@
   .row-indicateurs{flex:1;min-height:0;display:flex;gap:16px}
   .indic-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px;gap:8px}
 
-  .pp-counter{display:flex;align-items:baseline;gap:8px;margin-top:4px}
-  .pp-counter-value{font-family:var(--font-corps);font-weight:700;font-size:2rem;font-variant-numeric:tabular-nums}
-  .pp-counter-total{font-size:1rem;color:var(--text-faint);font-weight:500}
-  .pp-counter-label{font-size:.72rem;color:var(--text-faint)}
-  .pp-badge{margin-top:auto;font-family:var(--font-titres);font-size:.85rem;font-weight:700;text-align:center;border-radius:8px;padding:8px;background:var(--panel-2);color:var(--text-faint)}
-  .pp-badge.actif{background:var(--novawatt-orange);color:#1E3872}
+  .pp-card{align-items:center;justify-content:center;text-align:center;gap:4px;transition:background-color .2s,border-color .2s}
+  .pp-counter{display:flex;align-items:baseline;justify-content:center;gap:8px}
+  .pp-counter-value{font-family:var(--font-corps);font-weight:700;font-size:3.4rem;font-variant-numeric:tabular-nums;line-height:1}
+  .pp-counter-total{font-size:1.5rem;color:var(--text-faint);font-weight:500}
+  .pp-counter-label{font-size:.78rem;color:var(--text-faint)}
+  .pp-status{font-family:var(--font-titres);font-size:.9rem;font-weight:700;color:var(--text-faint);margin-top:2px}
+  .pp-card.actif{background:var(--novawatt-orange);border-color:var(--novawatt-orange)}
+  .pp-card.actif .section-title,.pp-card.actif .section-title em,.pp-card.actif .pp-counter-value,
+  .pp-card.actif .pp-counter-total,.pp-card.actif .pp-counter-label,.pp-card.actif .pp-status{color:#1E3872}
 
-  .fwd-grid{display:flex;gap:12px;margin-top:4px;flex:1}
-  .fwd-group{flex:1;display:flex;flex-direction:column;gap:4px}
-  .fwd-group-label{font-family:var(--font-titres);font-size:.72rem;color:var(--text-faint)}
-  .fwd-table{width:100%;border-collapse:collapse;font-family:var(--font-corps);font-variant-numeric:tabular-nums}
-  .fwd-table th,.fwd-table td{padding:4px 6px;text-align:right;font-size:.78rem}
-  .fwd-table thead th{color:var(--text-faint);font-family:var(--font-titres);font-size:.62rem;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
-  .fwd-table tbody th{text-align:left;color:var(--text-dim);font-family:var(--font-titres);font-weight:500;font-size:.72rem}
+  /* Carte forward plus large que les 3 autres de la rangée du bas (PP/mFRR/
+     Marché restent flex:1 via .indic-col) -- cf. échange utilisateur. */
+  .fwd-card{flex:2}
+  .fwd-table{width:100%;margin-top:6px;border-collapse:collapse;font-family:var(--font-corps);font-variant-numeric:tabular-nums}
+  .fwd-table th,.fwd-table td{padding:5px 10px;text-align:right;font-size:.85rem}
+  .fwd-table thead tr:first-child th{color:var(--text);font-family:var(--font-titres);font-size:.72rem;font-weight:700;padding-bottom:2px}
+  .fwd-table thead tr:last-child th{color:var(--text-faint);font-family:var(--font-titres);font-size:.62rem;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
+  .fwd-table tbody th{text-align:left;color:var(--text-dim);font-family:var(--font-titres);font-weight:500;font-size:.78rem}
   .fwd-table tbody tr:not(:last-child) td,.fwd-table tbody tr:not(:last-child) th{border-bottom:1px solid var(--line-muted)}
+  /* Séparation visuelle entre le bloc Serre et le bloc Indus. */
+  .fwd-table th:nth-child(2),.fwd-table td:nth-child(2){border-left:1px solid var(--line-muted)}
+  .fwd-table th:nth-child(4),.fwd-table td:nth-child(4){border-left:1px solid var(--line-muted)}
 
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
@@ -220,13 +227,13 @@
     </section>
 
     <section class="row-indicateurs">
-      <div class="card indic-col">
+      <div class="card indic-col pp-card" id="pp-card">
         <span class="section-title"><em>Jours</em> Pointe (PP)</span>
         <div class="pp-counter">
           <span class="pp-counter-value"><span id="pp-jours">—</span><span class="pp-counter-total" id="pp-total"></span></span>
         </div>
         <span class="pp-counter-label">jours PP écoulés cette saison</span>
-        <div class="pp-badge" id="pp-badge">—</div>
+        <span class="pp-status" id="pp-status">—</span>
       </div>
 
       <div class="card accent-mfrr indic-col">
@@ -257,9 +264,15 @@
         </div>
       </div>
 
-      <div class="card indic-col">
+      <div class="card indic-col fwd-card">
         <span class="section-title">Forward <em>clean spark spread</em></span>
-        <div class="fwd-grid" id="fwd-grid"></div>
+        <table class="fwd-table fwd-table-wide">
+          <thead>
+            <tr><th></th><th colspan="2">Serre (k 1,8)</th><th colspan="2">Indus (k 2,2)</th></tr>
+            <tr><th></th><th>Base</th><th>Peak</th><th>Base</th><th>Peak</th></tr>
+          </thead>
+          <tbody id="fwd-body"></tbody>
+        </table>
       </div>
     </section>
 
@@ -506,30 +519,18 @@
     return moyenne(sousEnsemble);
   }
 
-  function ligneFwd(m1, m2, q1){
-    return `
-      <tr><th>M+1</th><td>${fmt(m1.base,1)}</td><td>${fmt(m1.peak,1)}</td></tr>
-      <tr><th>M+2</th><td>${fmt(m2.base,1)}</td><td>${fmt(m2.peak,1)}</td></tr>
-      <tr><th>Q+1</th><td>${fmt(q1.base,1)}</td><td>${fmt(q1.peak,1)}</td></tr>`;
+  // Une ligne = une maturité, colonnes Serre Base/Peak puis Indus Base/Peak
+  // côte à côte (au lieu de 2 tables empilées) -- cf. échange utilisateur.
+  function ligneFwd(label, serre, indus){
+    return `<tr><th>${label}</th><td>${fmt(serre.base,1)}</td><td>${fmt(serre.peak,1)}</td><td>${fmt(indus.base,1)}</td><td>${fmt(indus.peak,1)}</td></tr>`;
   }
 
   function construitForwards(){
     const fwd = MOCK_COGE.forwards;
-    document.getElementById("fwd-grid").innerHTML = `
-      <div class="fwd-group">
-        <span class="fwd-group-label">Serre (k ${FACTEUR_SERRE})</span>
-        <table class="fwd-table">
-          <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
-          <tbody>${ligneFwd(fwd.serre.m1, fwd.serre.m2, fwd.serre.q1)}</tbody>
-        </table>
-      </div>
-      <div class="fwd-group">
-        <span class="fwd-group-label">Indus (k ${FACTEUR_INDUS})</span>
-        <table class="fwd-table">
-          <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
-          <tbody>${ligneFwd(fwd.indus.m1, fwd.indus.m2, fwd.indus.q1)}</tbody>
-        </table>
-      </div>`;
+    document.getElementById("fwd-body").innerHTML =
+      ligneFwd("M+1", fwd.serre.m1, fwd.indus.m1) +
+      ligneFwd("M+2", fwd.serre.m2, fwd.indus.m2) +
+      ligneFwd("Q+1", fwd.serre.q1, fwd.indus.q1);
   }
 
   function render(spot){
@@ -556,12 +557,12 @@
     setText("indus-base", `${fmt(moyenne(cleanIndus),1)} €/MWh`);
     setText("indus-peak", `${fmt(moyenneFenetre(cleanIndus,8,20),1)} €/MWh`);
 
-    // --- Jours PP ---
+    // --- Jours PP : toute la carte passe en orange quand on est en PP,
+    // pas juste un badge secondaire -- cf. échange utilisateur. ---
     setText("pp-jours", String(MOCK_COGE.pp.joursEcoules));
     setText("pp-total", `/${MOCK_COGE.pp.total}`);
-    const ppBadge = document.getElementById("pp-badge");
-    ppBadge.textContent = MOCK_COGE.pp.enPP ? "Aujourd'hui : jour PP" : "Aujourd'hui : hors PP";
-    ppBadge.classList.toggle("actif", MOCK_COGE.pp.enPP);
+    setText("pp-status", MOCK_COGE.pp.enPP ? "Aujourd'hui : jour PP" : "Aujourd'hui : hors PP");
+    document.getElementById("pp-card").classList.toggle("actif", MOCK_COGE.pp.enPP);
 
     // --- mFRR (mêmes valeurs que le dashboard BESS, légende différente --
     // comparaison saisonnière pas encore calculée côté back, texte statique
