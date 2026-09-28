@@ -121,18 +121,11 @@
   .tb-item .tb-item-label{font-family:var(--font-titres);font-size:.7rem;color:var(--text-faint)}
   .tb-item .tb-item-value{font-family:var(--font-corps);font-weight:700;font-size:1.3rem;font-variant-numeric:tabular-nums}
 
-  /* --- Rangée 1 : spark spread / valeurs instantanées / clean spark spread --- */
+  /* --- Rangée 1 : spark spread / clean spark spread --- */
   .row-spreads{flex:1.2;min-height:0;display:flex;gap:16px}
-  .spread-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px;position:relative}
-  .toggle-placeholder{
-    font-family:var(--font-titres);font-size:.68rem;color:var(--text-faint);
-    background:var(--panel-2);border:1px dashed var(--line-muted);border-radius:8px;
-    padding:6px 10px;cursor:not-allowed;text-align:center;
-  }
-  .spread-col .toggle-placeholder{position:absolute;top:12px;left:14px;z-index:2}
+  .spread-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px}
   .clean-note{font-size:.72rem;color:var(--text-faint);margin-top:6px}
 
-  .valeurs-instant-col{flex:0 0 190px;display:flex;flex-direction:column;align-items:center;justify-content:center}
   .kpi-box{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:12px 16px}
   .kpi-box .kpi-label{font-family:var(--font-titres);font-size:.8rem;color:var(--text);font-weight:700;display:flex;align-items:center;gap:8px}
   .kpi-box .kpi-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -197,14 +190,9 @@
 
     <section class="row-spreads">
       <div class="card accent-cogen spread-col">
-        <button class="toggle-placeholder" disabled title="Bientôt disponible">Choisir le facteur gaz/élec ?</button>
-        <span class="section-title" style="margin-left:150px"><em>Spark spread</em></span>
+        <span class="section-title"><em>Spark spread</em></span>
         <div class="chart-wrap" id="chart-spark"></div>
         <div class="legend" id="legend-spark"></div>
-      </div>
-
-      <div class="valeurs-instant-col">
-        <button class="toggle-placeholder" disabled title="Bientôt disponible">Elc ou chaleur ?</button>
       </div>
 
       <div class="card accent-cogen spread-col">
