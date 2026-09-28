@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Cogénération</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap">
+<style>
+  /* --- Identité NovaWatt : copié de index.html (dashboard BESS), voir ce
+     fichier pour la référence des composants (mini-box, pill, card). Pas
+     d'extraction en CSS partagé pour cette POC (un fichier de plus pour un
+     gain marginal, risque de casser BESS en le refactorisant maintenant). --- */
+  :root{
+    color-scheme: dark;
+    --novawatt-bleu:#1E3872;
+    --novawatt-vert:#73BC65;
+    --novawatt-orange:#F5A623;
+    --novawatt-bleu-technique:#2E86AB;
+    --novawatt-bleu-clair:#B9CDE5;
+    --novawatt-rouge:#C0392B;
+    --novawatt-violet:#6B3FA0;
+
+    --bg:#1E3872;
+    --panel:#2a4a89;
+    --panel-2:#193668;
+    --panel-muted:#1d3b70;
+    --line:#3f5fa0;
+    --line-muted:#2f4d85;
+    --grid:#345792;
+    --text:#ffffff;
+    --text-dim:#c7d4ee;
+    --text-faint:#9ab0dd;
+    --text-faint-2:#7f98cc;
+    --cogen:var(--novawatt-bleu-technique);
+    --mfrr:var(--novawatt-violet);
+    --hausse:var(--novawatt-orange);
+    --baisse:var(--novawatt-vert);
+    --pos:var(--novawatt-vert);
+    --neg:var(--novawatt-rouge);
+    /* Couleurs des 3 rendements, communes aux deux graphes spread. */
+    --rdt-1:var(--novawatt-vert);
+    --rdt-2:var(--novawatt-bleu-clair);
+    --rdt-3:var(--novawatt-violet);
+
+    --font-titres:'Ubuntu', system-ui, sans-serif;
+    --font-corps:'Aptos', 'Ubuntu', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{background:var(--bg);height:100%}
+  body{
+    margin:0;color:var(--text);
+    font-family:var(--font-corps);
+    -webkit-font-smoothing:antialiased;
+    height:100vh;overflow:hidden;
+    display:flex;flex-direction:column;
+    padding:18px 24px 16px;
+  }
+  .mono{font-family:var(--font-corps);font-variant-numeric:tabular-nums}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px 24px;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:14px;flex:0 0 auto}
+  .header-left{display:flex;align-items:center;gap:12px}
+  .logo-novawatt-header{height:1.9rem;width:auto;display:block}
+  h1{font-family:var(--font-titres);font-size:1.9rem;font-weight:700;letter-spacing:-0.01em;margin:0}
+  h1 .subhead{font-family:var(--font-corps);color:var(--text-dim);font-weight:400;font-size:.85rem;margin-left:10px}
+  .header-right{display:flex;align-items:center;gap:16px}
+  .btn-fullscreen{
+    flex:none;align-self:center;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--line-muted);border-radius:6px;color:var(--text-dim);
+    font-size:13px;line-height:1;cursor:pointer;padding:0;
+  }
+  .btn-fullscreen:hover{color:var(--text);border-color:var(--line)}
+
+  .poc-badge{font-family:var(--font-titres);font-size:.65rem;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--line-muted);border-radius:999px;padding:2px 10px;letter-spacing:.03em}
+
+  main.dashboard{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px}
+
+  .section-title{font-family:var(--font-titres);font-size:1.05rem;font-weight:500;letter-spacing:.01em;color:var(--text-dim)}
+  .section-title em{font-style:normal;font-weight:700;color:var(--text)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  .card.accent-cogen{border-top:3px solid var(--cogen)}
+  .card.accent-mfrr{border-top:3px solid var(--mfrr)}
+
+  .chart-wrap{position:relative;flex:1;min-height:0}
+  .chart-wrap svg{display:block;width:100%;height:100%}
+  .tick-label{font-family:var(--font-corps);font-size:9px;fill:var(--text-faint)}
+  .axis-unit{font-family:var(--font-corps);font-size:9px;font-weight:700;fill:var(--text-faint)}
+  .grid-line{stroke:var(--grid);stroke-width:1}
+  .axis-line{stroke:var(--line-muted);stroke-width:1}
+  .zero-line{stroke:var(--text-faint);stroke-width:1.6}
+  .legend{display:flex;gap:14px;margin-top:8px;flex:0 0 auto}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--text-dim)}
+  .legend-swatch{display:inline-block;width:12px;height:3px;border-radius:2px}
+  .crosshair-tip{
+    position:absolute;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:6px;padding:6px 9px;font-family:var(--font-corps);font-size:.72rem;
+    color:var(--text);white-space:nowrap;opacity:0;transition:opacity .1s;transform:translate(-50%,-115%);z-index:5;
+  }
+  .crosshair-tip .k{color:var(--text-faint)}
+
+  .pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-corps);font-size:.72rem;font-weight:800;padding:2px 7px;border-radius:999px;line-height:1.5;white-space:nowrap}
+  .pill.up{color:var(--pos);background:color-mix(in srgb, var(--pos) 16%, transparent)}
+  .pill.down{color:var(--novawatt-orange);background:color-mix(in srgb, var(--novawatt-orange) 16%, transparent)}
+  .pill-value{white-space:nowrap}
+  .pill-cap{font-size:.64rem;color:var(--text-faint);font-weight:500;margin-left:2px}
+
+  .mini-box{flex:1;background:var(--panel-2);border:1px solid var(--line-muted);border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:3px}
+  .mini-box .mini-label{font-family:var(--font-titres);font-size:.7rem;color:var(--text-faint);display:flex;align-items:center;gap:5px}
+  .mini-box .mini-swatch{display:inline-block;width:7px;height:7px;border-radius:50%}
+  .mini-box .mini-value{font-family:var(--font-corps);font-weight:700;font-size:1.15rem;display:flex;align-items:center;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums;width:100%}
+  .reserves-stats{display:flex;gap:10px;margin-top:8px;flex:0 0 auto}
+
+  .tb-row{display:flex;gap:12px}
+  .tb-item{flex:1;display:flex;flex-direction:column;gap:4px}
+  .tb-item .tb-item-label{font-family:var(--font-titres);font-size:.7rem;color:var(--text-faint)}
+  .tb-item .tb-item-value{font-family:var(--font-corps);font-weight:700;font-size:1.3rem;font-variant-numeric:tabular-nums}
+
+  /* --- Rangée 1 : spark spread / valeurs instantanées / clean spark spread --- */
+  .row-spreads{flex:1.2;min-height:0;display:flex;gap:16px}
+  .spread-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px;position:relative}
+  .toggle-placeholder{
+    font-family:var(--font-titres);font-size:.68rem;color:var(--text-faint);
+    background:var(--panel-2);border:1px dashed var(--line-muted);border-radius:8px;
+    padding:6px 10px;cursor:not-allowed;text-align:center;
+  }
+  .spread-col .toggle-placeholder{position:absolute;top:12px;left:14px;z-index:2}
+  .clean-note{font-size:.72rem;color:var(--text-faint);margin-top:6px}
+
+  .valeurs-instant-col{flex:0 0 250px;display:flex;flex-direction:column;gap:10px}
+  .kpi-box{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:12px 16px}
+  .kpi-box .kpi-label{font-family:var(--font-titres);font-size:.8rem;color:var(--text);font-weight:700;display:flex;align-items:center;gap:8px}
+  .badge-rendement{font-family:var(--font-corps);font-size:.68rem;font-weight:500;color:var(--text-faint);background:var(--panel-muted);border-radius:999px;padding:1px 8px}
+  .instant-note{font-size:.62rem;color:var(--text-faint)}
+
+  /* --- Rangée 2 : indicateurs --- */
+  .row-indicateurs{flex:1;min-height:0;display:flex;gap:16px}
+  .indic-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px;gap:8px}
+
+  .pp-counter{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+  .pp-counter-value{font-family:var(--font-corps);font-weight:700;font-size:2rem;font-variant-numeric:tabular-nums}
+  .pp-counter-total{font-size:1rem;color:var(--text-faint);font-weight:500}
+  .pp-counter-label{font-size:.72rem;color:var(--text-faint)}
+  .pp-badge{margin-top:auto;font-family:var(--font-titres);font-size:.85rem;font-weight:700;text-align:center;border-radius:8px;padding:8px;background:var(--panel-2);color:var(--text-faint)}
+  .pp-badge.actif{background:var(--novawatt-orange);color:#1E3872}
+
+  .fwd-grid{display:flex;gap:12px;margin-top:4px;flex:1}
+  .fwd-group{flex:1;display:flex;flex-direction:column;gap:4px}
+  .fwd-group-label{font-family:var(--font-titres);font-size:.72rem;color:var(--text-faint)}
+  .fwd-table{width:100%;border-collapse:collapse;font-family:var(--font-corps);font-variant-numeric:tabular-nums}
+  .fwd-table th,.fwd-table td{padding:4px 6px;text-align:right;font-size:.78rem}
+  .fwd-table thead th{color:var(--text-faint);font-family:var(--font-titres);font-size:.62rem;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
+  .fwd-table tbody th{text-align:left;color:var(--text-dim);font-family:var(--font-titres);font-weight:500;font-size:.72rem}
+  .fwd-table tbody tr:not(:last-child) td,.fwd-table tbody tr:not(:last-child) th{border-bottom:1px solid var(--line-muted)}
+
+  @media (max-width:1100px){
+    body{height:auto;overflow:auto}
+    .row-spreads,.row-indicateurs{flex-direction:column}
+    .valeurs-instant-col{flex-direction:row}
+    main.dashboard{gap:20px}
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <img class="logo-novawatt-header" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
+      <h1>Dashboard Cogénération<span class="subhead">Spark spread, clean spark spread, marché gaz/CO2 — France</span></h1>
+    </div>
+    <div class="header-right">
+      <span class="poc-badge">POC — données partiellement simulées</span>
+      <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+
+    <section class="row-spreads">
+      <div class="card accent-cogen spread-col">
+        <button class="toggle-placeholder" disabled title="Bientôt disponible">Choisir les rendements ?</button>
+        <span class="section-title" style="margin-left:150px"><em>Spark spread</em> — ×3 rendements</span>
+        <div class="chart-wrap" id="chart-spark"></div>
+        <div class="legend" id="legend-spark"></div>
+      </div>
+
+      <div class="valeurs-instant-col">
+        <button class="toggle-placeholder" disabled title="Bientôt disponible">Elc ou chaleur ?</button>
+        <div class="card kpi-box">
+          <span class="kpi-label">Cogé serre <span class="badge-rendement">η 1,8</span></span>
+          <div class="tb-row">
+            <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="serre-base">—</span></div>
+            <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="serre-peak">—</span></div>
+          </div>
+        </div>
+        <div class="card kpi-box">
+          <span class="kpi-label">Cogé indus <span class="badge-rendement">η 2,2</span></span>
+          <div class="tb-row">
+            <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="indus-base">—</span></div>
+            <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="indus-peak">—</span></div>
+          </div>
+        </div>
+        <span class="instant-note">Valeurs en clean spark spread (€/MWh), calculées à partir du spot du jour</span>
+      </div>
+
+      <div class="card accent-cogen spread-col">
+        <span class="section-title"><em>Clean spark spread</em> — ×3 rendements, +CO2</span>
+        <div class="chart-wrap" id="chart-clean-spark"></div>
+        <div class="legend" id="legend-clean-spark"></div>
+        <span class="clean-note">Formule POC : CSS = P_elec − (P_gaz + 0,185×P_CO2) / rendement</span>
+      </div>
+    </section>
+
+    <section class="row-indicateurs">
+      <div class="card indic-col">
+        <span class="section-title"><em>Jours</em> Pointe (PP)</span>
+        <div class="pp-counter">
+          <span class="pp-counter-value"><span id="pp-jours">—</span><span class="pp-counter-total" id="pp-total"></span></span>
+        </div>
+        <span class="pp-counter-label">jours PP écoulés cette saison</span>
+        <div class="pp-badge" id="pp-badge">—</div>
+      </div>
+
+      <div class="card accent-mfrr indic-col">
+        <span class="section-title"><em>mFRR</em></span>
+        <div class="reserves-stats">
+          <div class="mini-box">
+            <span class="mini-label"><span class="mini-swatch" style="background:var(--hausse)"></span>Hausse — moy. jour</span>
+            <span class="mini-value"><span id="mfrr-up-moyenne">—</span><span id="mfrr-up-moyenne-pill"></span></span>
+          </div>
+          <div class="mini-box">
+            <span class="mini-label"><span class="mini-swatch" style="background:var(--baisse)"></span>Baisse — moy. jour</span>
+            <span class="mini-value"><span id="mfrr-down-moyenne">—</span><span id="mfrr-down-moyenne-pill"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card indic-col">
+        <span class="section-title"><em>Marché</em> — Peg &amp; CO2</span>
+        <div class="reserves-stats">
+          <div class="mini-box">
+            <span class="mini-label">Peg du jour</span>
+            <span class="mini-value"><span id="peg-valeur">—</span><span id="peg-pill"></span></span>
+          </div>
+          <div class="mini-box">
+            <span class="mini-label">CO2</span>
+            <span class="mini-value"><span id="co2-valeur">—</span><span id="co2-pill"></span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card indic-col">
+        <span class="section-title">Forward <em>clean spark spread</em></span>
+        <div class="fwd-grid" id="fwd-grid"></div>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+(function(){
+  "use strict";
+
+  const W = 640, H = 220, PAD_L = 40, PAD_R = 14, PAD_T = 10, PAD_B = 20;
+  const plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
+  const REFRESH_MS = 15 * 60 * 1000;
+  const LOCAL_TICK_MS = 60 * 1000;
+
+  // --- Hypothèses métier POC — cf. plan / échange utilisateur ---
+  const RENDEMENTS = [1.8, 2.2, 3.2];
+  const RENDEMENT_SERRE = 1.8;
+  const RENDEMENT_INDUS = 2.2;
+  const FACTEUR_EMISSION_CO2 = 0.185; // tCO2 / MWh_gaz (PCI, turbine standard)
+  const COULEURS_RENDEMENT = ["var(--rdt-1)", "var(--rdt-2)", "var(--rdt-3)"];
+
+  // Données non encore disponibles côté back (gaz, CO2, forwards, PP,
+  // comparaison saisonnière mFRR) — toutes regroupées ici pour que le futur
+  // branchement sur de vraies sources soit un diff localisé à cet objet.
+  // POC — à remplacer par de vraies données.
+  const MOCK_COGE = {
+    peg: { prix: 70, serie7j: [69.2, 70.8, 71.5, 68.9, 69.4, 70.1, 70.6] }, // €/MWh PCS
+    co2: { prix: 80, serie7j: [78.4, 79.1, 81.2, 82.0, 79.8, 78.9, 79.6] }, // €/tCO2
+    forwards: {
+      serre: {
+        m1: { base: 32.4, peak: 44.8 },
+        m2: { base: 35.1, peak: 47.6 },
+        q1: { base: 38.7, peak: 51.2 },
+      },
+      indus: {
+        m1: { base: 41.9, peak: 55.3 },
+        m2: { base: 44.6, peak: 58.1 },
+        q1: { base: 48.2, peak: 62.4 },
+      },
+    },
+    pp: { joursEcoules: 5, total: 22, enPP: true },
+    mfrr: { hausseMoyenne: 62.3, hausseEcartPct: 8.4, baisseMoyenne: 41.7, baisseEcartPct: -5.2 },
+  };
+
+  function xScale(hour){ return PAD_L + (hour/24) * plotW; }
+
+  function pasRond(pasBrut){
+    const magnitude = Math.pow(10, Math.floor(Math.log10(pasBrut)));
+    const residu = pasBrut / magnitude;
+    if(residu > 5) return 10 * magnitude;
+    if(residu > 2) return 5 * magnitude;
+    if(residu > 1) return 2 * magnitude;
+    return magnitude;
+  }
+
+  function makeYScale(series, ciblesTicks){
+    ciblesTicks = ciblesTicks || 4;
+    const all = series.flat().filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+    let loData = all.length ? Math.min(...all, 0) : 0;
+    let hiData = all.length ? Math.max(...all, 0) : 1;
+    if(loData === hiData) hiData = loData + 1;
+
+    const pas = pasRond((hiData - loData) / ciblesTicks) || 1;
+    const lo = Math.floor(loData / pas) * pas;
+    const hi = Math.ceil(hiData / pas) * pas;
+    const ticks = [];
+    for(let v = lo; v <= hi + pas*0.5; v += pas) ticks.push(Math.round(v/pas)*pas);
+
+    return { lo, hi, ticks, y: v => PAD_T + plotH - ((v-lo)/(hi-lo))*plotH };
+  }
+
+  function stepPath(points){
+    let d = "", enCours = false, dernierY = null;
+    for(let i=0;i<points.length;i++){
+      const [x, y] = points[i];
+      if(y === null){ enCours = false; continue; }
+      if(!enCours){ d += ` M ${x.toFixed(1)} ${y.toFixed(1)}`; enCours = true; }
+      else { d += ` L ${x.toFixed(1)} ${dernierY.toFixed(1)} L ${x.toFixed(1)} ${y.toFixed(1)}`; }
+      dernierY = y;
+    }
+    return d.trim();
+  }
+
+  function svgEl(tag, attrs){
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for(const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function gridAndAxis(svg, yScale){
+    yScale.ticks.forEach(v=>{
+      const y = yScale.y(v);
+      const surZero = Math.abs(v) < 1e-9;
+      svg.appendChild(svgEl("line", {
+        class: surZero ? "zero-line" : "grid-line",
+        x1:PAD_L, x2:W-PAD_R, y1:y.toFixed(1), y2:y.toFixed(1),
+      }));
+      const t = svgEl("text", {class:"tick-label", x:PAD_L-6, y:(y+3).toFixed(1), "text-anchor":"end"});
+      t.textContent = v.toLocaleString("fr-FR");
+      svg.appendChild(t);
+    });
+    [0,6,12,18,23].forEach(h=>{
+      const x = xScale(h);
+      const t = svgEl("text", {class:"tick-label", x:x.toFixed(1), y:H-6, "text-anchor":"middle"});
+      t.textContent = String(h).padStart(2,"0")+"h";
+      svg.appendChild(t);
+    });
+    svg.appendChild(svgEl("line", {class:"axis-line", x1:PAD_L, x2:W-PAD_R, y1:H-PAD_B, y2:H-PAD_B}));
+  }
+
+  function crosshairLayer(container, svg, series, colors, unit){
+    const tip = document.createElement("div");
+    tip.className = "crosshair-tip";
+    container.appendChild(tip);
+    const guide = svgEl("line", {x1:0,x2:0,y1:PAD_T,y2:H-PAD_B, stroke:"var(--text-faint)", "stroke-width":1, opacity:0});
+    svg.appendChild(guide);
+
+    svg.addEventListener("mousemove", (e)=>{
+      const rect = svg.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width * W;
+      let hour = ((px - PAD_L) / plotW) * 24;
+      hour = Math.max(0, Math.min(23.99, hour));
+      const qIdx = Math.min(95, Math.floor(hour*4)), hh = Math.floor(qIdx/4), mm = (qIdx%4)*15;
+      const x = xScale(qIdx*0.25);
+      guide.setAttribute("x1", x.toFixed(1)); guide.setAttribute("x2", x.toFixed(1)); guide.setAttribute("opacity", 0.6);
+      const lines = series.map((s,i)=>{
+        const v = s[qIdx];
+        return `<span class="k">${colors.labels[i]}:</span> ${v === null || v === undefined ? "—" : v.toFixed(1)} ${unit}`;
+      }).join("<br>");
+      const finHh = mm+15===60 ? hh+1 : hh, finMm = (mm+15)%60;
+      tip.innerHTML = `<div>${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}–${String(finHh).padStart(2,"0")}:${String(finMm).padStart(2,"0")}</div>${lines}`;
+      tip.style.opacity = 1;
+      tip.style.left = (px/W*100) + "%";
+      tip.style.top = "8px";
+    });
+    svg.addEventListener("mouseleave", ()=>{ guide.setAttribute("opacity",0); tip.style.opacity=0; });
+  }
+
+  function buildChart(containerId, series, colors, opts){
+    opts = opts || {};
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+    const svg = svgEl("svg", {viewBox:`0 0 ${W} ${H}`, preserveAspectRatio:"none", role:"img", "aria-label": opts.ariaLabel || ""});
+    const yScale = makeYScale(series);
+
+    gridAndAxis(svg, yScale);
+    if(opts.unit){
+      const t = svgEl("text", {class:"axis-unit", x:PAD_L, y:(PAD_T-2).toFixed(1), "text-anchor":"start"});
+      t.textContent = opts.unit;
+      svg.appendChild(t);
+    }
+
+    series.forEach((s, idx)=>{
+      const points = s.map((v,i)=>[xScale(i*0.25), v === null || v === undefined || Number.isNaN(v) ? null : yScale.y(v)]);
+      const pathD = stepPath(points);
+      if(pathD) svg.appendChild(svgEl("path", {d:pathD, fill:"none", stroke:colors.stroke[idx], "stroke-width":2, "stroke-linecap":"round", "stroke-linejoin":"round"}));
+    });
+
+    container.appendChild(svg);
+    crosshairLayer(container, svg, series, colors, opts.unit);
+  }
+
+  // --- formatage ---
+  function fmt(v, decimals){
+    if(v === null || v === undefined || Number.isNaN(v)) return "—";
+    return v.toLocaleString("fr-FR", {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+  }
+  function pillHtml(ecartPct, caption){
+    if(ecartPct === null || ecartPct === undefined || Number.isNaN(ecartPct)) return "";
+    const up = ecartPct >= 0;
+    const fleche = up ? "&#9650;" : "&#9660;";
+    const signe = up ? "+" : "−";
+    return `<span class="pill ${up?"up":"down"}"><span class="pill-value">${fleche} ${signe}${fmt(Math.abs(ecartPct),1)}&#37;</span><span class="pill-cap">${caption || "vs 7j"}</span></span>`;
+  }
+  function ecartPct(valeur, reference){
+    if(valeur === null || valeur === undefined || reference === null || reference === undefined || reference === 0) return null;
+    return ((valeur - reference) / Math.abs(reference)) * 100;
+  }
+  function moyenne(liste){
+    if(!liste || !liste.length) return null;
+    return liste.reduce((a,b)=>a+b,0) / liste.length;
+  }
+  function setText(id, texte){ const el = document.getElementById(id); if(el) el.textContent = texte; }
+  function setHtml(id, html){ const el = document.getElementById(id); if(el) el.innerHTML = html; }
+
+  function remplitJournee(points){
+    const cases = new Array(96).fill(null);
+    if(!points) return cases;
+    points.forEach(p=>{
+      const d = new Date(p.ts);
+      const idx = d.getHours()*4 + Math.floor(d.getMinutes()/15);
+      if(idx >= 0 && idx < 96) cases[idx] = p.prix;
+    });
+    return cases;
+  }
+
+  // Profil spot de secours si /api/kpis est indisponible (backend BESS pas
+  // encore démarré en local, ou premier déploiement de cette page avant que
+  // le cron ait tourné) -- forme plausible (creux nuit, pointes matin/soir),
+  // uniquement pour que la mise en page reste visualisable, pas pour un usage
+  // réel. POC — à remplacer par de vraies données.
+  function serieSpotSecours(){
+    const cases = new Array(96);
+    for(let i=0;i<96;i++){
+      const h = i/4;
+      const base = 55 + 25*Math.sin((h-9)/24*2*Math.PI*2) - 10*Math.cos(h/24*2*Math.PI);
+      cases[i] = Math.max(5, base);
+    }
+    return cases;
+  }
+
+  // --- Formules métier (cf. échange utilisateur) ---
+  function sparkSpread(pElec, pGaz, rendement){
+    if(pElec === null || pElec === undefined) return null;
+    return pElec - pGaz/rendement;
+  }
+  function cleanSparkSpread(pElec, pGaz, pCo2, rendement){
+    if(pElec === null || pElec === undefined) return null;
+    return pElec - (pGaz + FACTEUR_EMISSION_CO2*pCo2) / rendement;
+  }
+
+  function construitLegende(elId, labels, couleurs){
+    const el = document.getElementById(elId);
+    el.innerHTML = labels.map((l,i)=>`<span class="legend-item"><span class="legend-swatch" style="background:${couleurs[i]}"></span>η ${l}</span>`).join("");
+  }
+
+  // Moyenne 15 min sur la fenêtre horaire [hDebut, hFin) -- même convention
+  // "peak 8h-20h" que le dashboard BESS pour rester cohérent visuellement,
+  // à confirmer côté métier cogé (hypothèse POC).
+  function moyenneFenetre(serie, hDebut, hFin){
+    const sousEnsemble = serie.slice(hDebut*4, hFin*4).filter(v => v !== null && v !== undefined);
+    return moyenne(sousEnsemble);
+  }
+
+  function ligneFwd(m1, m2, q1){
+    return `
+      <tr><th>M+1</th><td>${fmt(m1.base,1)}</td><td>${fmt(m1.peak,1)}</td></tr>
+      <tr><th>M+2</th><td>${fmt(m2.base,1)}</td><td>${fmt(m2.peak,1)}</td></tr>
+      <tr><th>Q+1</th><td>${fmt(q1.base,1)}</td><td>${fmt(q1.peak,1)}</td></tr>`;
+  }
+
+  function construitForwards(){
+    const fwd = MOCK_COGE.forwards;
+    document.getElementById("fwd-grid").innerHTML = `
+      <div class="fwd-group">
+        <span class="fwd-group-label">Serre (η ${RENDEMENT_SERRE})</span>
+        <table class="fwd-table">
+          <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
+          <tbody>${ligneFwd(fwd.serre.m1, fwd.serre.m2, fwd.serre.q1)}</tbody>
+        </table>
+      </div>
+      <div class="fwd-group">
+        <span class="fwd-group-label">Indus (η ${RENDEMENT_INDUS})</span>
+        <table class="fwd-table">
+          <thead><tr><th></th><th>Base</th><th>Peak</th></tr></thead>
+          <tbody>${ligneFwd(fwd.indus.m1, fwd.indus.m2, fwd.indus.q1)}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function render(spot){
+    // --- Courbes spark spread / clean spark spread, ×3 rendements ---
+    const seriesSpark = RENDEMENTS.map(r => spot.map(p => sparkSpread(p, MOCK_COGE.peg.prix, r)));
+    const seriesClean = RENDEMENTS.map(r => spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, r)));
+
+    buildChart("chart-spark", seriesSpark, {stroke:COULEURS_RENDEMENT, labels:RENDEMENTS.map(r=>`η ${r}`)}, {
+      unit:"€/MWh", ariaLabel:"Spark spread sur la journée, pour 3 rendements",
+    });
+    buildChart("chart-clean-spark", seriesClean, {stroke:COULEURS_RENDEMENT, labels:RENDEMENTS.map(r=>`η ${r}`)}, {
+      unit:"€/MWh", ariaLabel:"Clean spark spread sur la journée, pour 3 rendements",
+    });
+    construitLegende("legend-spark", RENDEMENTS, COULEURS_RENDEMENT);
+    construitLegende("legend-clean-spark", RENDEMENTS, COULEURS_RENDEMENT);
+
+    // --- Valeurs instantanées cogé serre / indus (clean spark spread, cf.
+    // note affichée : la valeur "réelle" pour une décision de production doit
+    // intégrer le coût carbone, pas seulement le spread brut). ---
+    const cleanSerre = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, RENDEMENT_SERRE));
+    const cleanIndus = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, RENDEMENT_INDUS));
+    setText("serre-base", `${fmt(moyenne(cleanSerre),1)} €/MWh`);
+    setText("serre-peak", `${fmt(moyenneFenetre(cleanSerre,8,20),1)} €/MWh`);
+    setText("indus-base", `${fmt(moyenne(cleanIndus),1)} €/MWh`);
+    setText("indus-peak", `${fmt(moyenneFenetre(cleanIndus,8,20),1)} €/MWh`);
+
+    // --- Jours PP ---
+    setText("pp-jours", String(MOCK_COGE.pp.joursEcoules));
+    setText("pp-total", `/${MOCK_COGE.pp.total}`);
+    const ppBadge = document.getElementById("pp-badge");
+    ppBadge.textContent = MOCK_COGE.pp.enPP ? "Aujourd'hui : jour PP" : "Aujourd'hui : hors PP";
+    ppBadge.classList.toggle("actif", MOCK_COGE.pp.enPP);
+
+    // --- mFRR (mêmes valeurs que le dashboard BESS, légende différente --
+    // comparaison saisonnière pas encore calculée côté back, texte statique
+    // pour cette POC). ---
+    setText("mfrr-up-moyenne", `${fmt(MOCK_COGE.mfrr.hausseMoyenne,1)} €/MWh`);
+    setHtml("mfrr-up-moyenne-pill", pillHtml(MOCK_COGE.mfrr.hausseEcartPct, "vs saison précédente"));
+    setText("mfrr-down-moyenne", `${fmt(MOCK_COGE.mfrr.baisseMoyenne,1)} €/MWh`);
+    setHtml("mfrr-down-moyenne-pill", pillHtml(MOCK_COGE.mfrr.baisseEcartPct, "vs saison précédente"));
+
+    // --- Peg / CO2 vs 7 derniers jours ---
+    setText("peg-valeur", `${fmt(MOCK_COGE.peg.prix,1)} €/MWh`);
+    setHtml("peg-pill", pillHtml(ecartPct(MOCK_COGE.peg.prix, moyenne(MOCK_COGE.peg.serie7j)), "vs 7j"));
+    setText("co2-valeur", `${fmt(MOCK_COGE.co2.prix,1)} €/tCO2`);
+    setHtml("co2-pill", pillHtml(ecartPct(MOCK_COGE.co2.prix, moyenne(MOCK_COGE.co2.serie7j)), "vs 7j"));
+
+    // --- Forwards ---
+    construitForwards();
+  }
+
+  async function chargerEtRendre(){
+    let spot = null;
+    try{
+      const reponse = await fetch("/api/kpis", {cache:"no-store"});
+      if(reponse.ok){
+        const snap = await reponse.json();
+        if(snap.series && snap.series.da && snap.series.da.length) spot = remplitJournee(snap.series.da);
+      }
+    }catch(erreur){
+      console.warn("Spot réel indisponible, utilisation d'un profil de secours :", erreur);
+    }
+    render(spot || serieSpotSecours());
+  }
+
+  const btnFullscreen = document.getElementById("btn-fullscreen");
+  btnFullscreen.addEventListener("click", () => {
+    if(document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{});
+  });
+  document.addEventListener("fullscreenchange", () => {
+    btnFullscreen.textContent = document.fullscreenElement ? "⤫" : "⛶";
+  });
+
+  chargerEtRendre();
+  setInterval(chargerEtRendre, REFRESH_MS);
+})();
+</script>
+</body>
+</html>
