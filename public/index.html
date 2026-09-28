@@ -67,6 +67,11 @@
   }
   .btn-fullscreen:hover{color:var(--text);border-color:var(--line)}
 
+  .dash-nav{display:flex;gap:6px}
+  .dash-nav-link{font-family:var(--font-titres);font-size:.72rem;font-weight:600;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--line-muted);border-radius:999px;padding:4px 12px;text-decoration:none;transition:color .1s,border-color .1s}
+  .dash-nav-link:hover{color:var(--text);border-color:var(--line)}
+  .dash-nav-link.active{color:var(--text);background:var(--panel-muted);border-color:var(--line);font-weight:700}
+
   .error-banner{
     display:none;gap:10px;align-items:flex-start;
     position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:50;max-width:720px;
@@ -201,6 +206,10 @@
       <h1>Dashboard BESS<span class="subhead">Day-ahead, FCR, aFRR &amp; mFRR — France</span></h1>
     </div>
     <div class="header-right">
+      <nav class="dash-nav">
+        <a class="dash-nav-link active" href="index.html">BESS</a>
+        <a class="dash-nav-link" href="coge.html">Cogé</a>
+      </nav>
       <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
     </div>
   </header>
