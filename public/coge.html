@@ -40,7 +40,7 @@
     /* Couleurs des 3 rendements, communes aux deux graphes spread. */
     --rdt-1:var(--novawatt-vert);
     --rdt-2:var(--novawatt-bleu-clair);
-    --rdt-3:#000000;
+    --rdt-3:var(--novawatt-orange);
 
     --font-titres:'Ubuntu', system-ui, sans-serif;
     --font-corps:'Aptos', 'Ubuntu', system-ui, sans-serif;
@@ -166,40 +166,37 @@
   /* Carte forward plus large que les 3 autres colonnes de la rangée du bas,
      mais un peu moins qu'avant -- cf. échange utilisateur. */
   .fwd-card{flex:1.6}
-  /* Table unique (produit à gauche, puis Serre/Indus) plutôt que 2 sous-cases
-     -- plus de place pour des valeurs grandes et lisibles, cf. échange
-     utilisateur ("plus grand et visible"). */
-  .fwd-table{width:100%;margin-top:8px;border-collapse:collapse;font-family:var(--font-corps);font-variant-numeric:tabular-nums}
-  .fwd-table th,.fwd-table td{padding:8px 16px;text-align:right;font-size:1.05rem}
-  .fwd-table thead tr:first-child th{color:var(--text);font-family:var(--font-titres);font-size:.85rem;font-weight:700;padding-bottom:4px;text-align:right}
-  .fwd-table thead tr:first-child th:first-child{text-align:left}
+  /* Table unique (produit à gauche, puis Serre/Industriels) -- 2 vraies
+     cartes arrondies "Serre"/"Industriels" séparées par une colonne vide
+     (.fwd-spacer), sur le modèle de la maquette fournie par l'utilisateur.
+     border-collapse:separate (pas collapse) pour que le border-radius par
+     cellule s'affiche proprement. */
+  .fwd-table{width:100%;margin-top:10px;border-collapse:separate;border-spacing:0;font-family:var(--font-corps);font-variant-numeric:tabular-nums}
+  .fwd-table th,.fwd-table td{padding:8px 14px;text-align:right;font-size:1.05rem}
+  .fwd-table thead tr:first-child th{color:var(--text);font-family:var(--font-titres);font-size:.95rem;font-weight:700;padding:10px 14px 8px;text-align:center}
   .fwd-table thead tr:last-child th{color:var(--text-faint);font-family:var(--font-titres);font-size:.68rem;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
   .fwd-table tbody th{text-align:left;color:var(--text-dim);font-family:var(--font-titres);font-weight:500;font-size:.9rem}
-  .fwd-table tbody tr:not(:last-child) td,.fwd-table tbody tr:not(:last-child) th{border-bottom:1px solid var(--line-muted)}
+  .fwd-table th.fwd-spacer,.fwd-table td.fwd-spacer{padding:0;width:20px}
+  .fwd-table tbody tr:not(:last-child) td:not(.fwd-spacer),.fwd-table tbody tr:not(:last-child) th{border-bottom:1px solid var(--line-muted)}
 
-  /* Encadre les blocs Serre et Indus (fond + bordure), comme les mini-box de
-     réserves -- cf. échange utilisateur. Colonnes 2-3 = Serre, 4-5 = Indus. */
+  /* Encadre Serre (colonnes 2-3) et Industriels (colonnes 5-6) comme 2
+     cartes arrondies distinctes, séparées par .fwd-spacer -- cf. maquette
+     utilisateur. */
   .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(2),.fwd-table tbody td:nth-child(2),
-  .fwd-table thead tr:first-child th:nth-child(3),.fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3),
-  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(4),.fwd-table tbody td:nth-child(4),
-  .fwd-table thead tr:first-child th:nth-child(5),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5){
+  .fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3),
+  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5),
+  .fwd-table thead tr:last-child th:nth-child(6),.fwd-table tbody td:nth-child(6){
     background:var(--panel-2);
   }
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(2),.fwd-table tbody td:nth-child(2),
-  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(4),.fwd-table tbody td:nth-child(4){
-    border-left:1px solid var(--line-muted);
-  }
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3){
-    border-right:1px solid var(--line-muted);
-  }
-  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5){
-    border-right:1px solid var(--line-muted);
-  }
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:first-child th:nth-child(4){border-top:1px solid var(--line-muted)}
-  .fwd-table tbody tr:last-child td:nth-child(2),.fwd-table tbody tr:last-child td:nth-child(3),
-  .fwd-table tbody tr:last-child td:nth-child(4),.fwd-table tbody tr:last-child td:nth-child(5){
-    border-bottom:1px solid var(--line-muted);
-  }
+  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(2),.fwd-table tbody td:nth-child(2){border-left:1px solid var(--line-muted)}
+  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3){border-right:1px solid var(--line-muted)}
+  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5){border-left:1px solid var(--line-muted)}
+  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(6),.fwd-table tbody td:nth-child(6){border-right:1px solid var(--line-muted)}
+  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:first-child th:nth-child(4){border-top:1px solid var(--line-muted);border-radius:14px 14px 0 0}
+  .fwd-table tbody tr:last-child td:nth-child(2){border-bottom:1px solid var(--line-muted);border-radius:0 0 0 14px}
+  .fwd-table tbody tr:last-child td:nth-child(3){border-bottom:1px solid var(--line-muted);border-radius:0 0 14px 0}
+  .fwd-table tbody tr:last-child td:nth-child(5){border-bottom:1px solid var(--line-muted);border-radius:0 0 0 14px}
+  .fwd-table tbody tr:last-child td:nth-child(6){border-bottom:1px solid var(--line-muted);border-radius:0 0 14px 0}
 
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
@@ -302,8 +299,8 @@
         <span class="section-title">Forward <em>clean spark spread</em></span>
         <table class="fwd-table">
           <thead>
-            <tr><th>Produit</th><th colspan="2">Serre — k 1,8</th><th colspan="2">Indus — k 2,2</th></tr>
-            <tr><th></th><th>Base</th><th>Peak</th><th>Base</th><th>Peak</th></tr>
+            <tr><th></th><th colspan="2">Serre (k=1,8)</th><th class="fwd-spacer"></th><th colspan="2">Industriels (k=2,2)</th></tr>
+            <tr><th></th><th>Peak</th><th>Base</th><th class="fwd-spacer"></th><th>Peak</th><th>Base</th></tr>
           </thead>
           <tbody id="fwd-body"></tbody>
         </table>
@@ -553,10 +550,11 @@
     return moyenne(sousEnsemble);
   }
 
-  // Une ligne = un produit (maturité), Serre puis Indus côte à côte dans la
-  // même table -- plus grand/visible qu'en 2 sous-cases, cf. échange utilisateur.
+  // Une ligne = un produit (maturité), Serre puis Industriels côte à côte
+  // (Peak avant Base, colonne vide .fwd-spacer entre les 2 blocs) -- cf.
+  // maquette utilisateur.
   function ligneFwd(produit, serre, indus){
-    return `<tr><th>${produit}</th><td>${fmt(serre.base,1)}</td><td>${fmt(serre.peak,1)}</td><td>${fmt(indus.base,1)}</td><td>${fmt(indus.peak,1)}</td></tr>`;
+    return `<tr><th>${produit}</th><td>${fmt(serre.peak,1)}</td><td>${fmt(serre.base,1)}</td><td class="fwd-spacer"></td><td>${fmt(indus.peak,1)}</td><td>${fmt(indus.base,1)}</td></tr>`;
   }
 
   function construitForwards(){
