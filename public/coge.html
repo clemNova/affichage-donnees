@@ -81,7 +81,7 @@
 
   .section-title{font-family:var(--font-titres);font-size:1.05rem;font-weight:500;letter-spacing:.01em;color:var(--text-dim)}
   .section-title em{font-style:normal;font-weight:700;color:var(--text)}
-  .section-date{font-family:var(--font-corps);font-size:.68rem;font-weight:400;color:var(--text-faint)}
+  .section-date{font-family:var(--font-corps);font-size:.95rem;font-weight:500;color:var(--text-dim)}
 
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;box-shadow:0 2px 10px rgba(0,0,0,.18)}
   .card.accent-cogen{border-top:3px solid var(--cogen)}
@@ -118,9 +118,14 @@
   .reserves-stats{display:flex;flex-direction:column;gap:8px;margin-top:8px;flex:1;min-height:0}
 
   .tb-row{display:flex;gap:12px}
-  .tb-item{flex:1;display:flex;flex-direction:column;gap:4px}
+  .tb-item{flex:1;display:flex;flex-direction:column;gap:2px}
   .tb-item .tb-item-label{font-family:var(--font-titres);font-size:.7rem;color:var(--text-faint)}
   .tb-item .tb-item-value{font-family:var(--font-corps);font-weight:700;font-size:1.3rem;font-variant-numeric:tabular-nums}
+
+  /* Contour de couleur reliant chaque carte à sa courbe sur les graphes
+     spark spread (k 1,8 = vert, k 2,2 = bleu clair) -- cf. échange utilisateur. */
+  .ref-serre{border-color:var(--rdt-1)}
+  .ref-indus{border-color:var(--rdt-2)}
 
   /* --- Rangée 1 : spark spread / clean spark spread --- */
   .row-spreads{flex:1.2;min-height:0;display:flex;gap:16px}
@@ -191,15 +196,19 @@
   .fwd-table thead tr:last-child th:nth-child(6),.fwd-table tbody td:nth-child(6){
     background:var(--panel-2);
   }
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(2),.fwd-table tbody td:nth-child(2){border-left:1px solid var(--line-muted)}
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3){border-right:1px solid var(--line-muted)}
-  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5){border-left:1px solid var(--line-muted)}
-  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(6),.fwd-table tbody td:nth-child(6){border-right:1px solid var(--line-muted)}
-  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:first-child th:nth-child(4){border-top:1px solid var(--line-muted);border-radius:14px 14px 0 0}
-  .fwd-table tbody tr:last-child td:nth-child(2){border-bottom:1px solid var(--line-muted);border-radius:0 0 0 14px}
-  .fwd-table tbody tr:last-child td:nth-child(3){border-bottom:1px solid var(--line-muted);border-radius:0 0 14px 0}
-  .fwd-table tbody tr:last-child td:nth-child(5){border-bottom:1px solid var(--line-muted);border-radius:0 0 0 14px}
-  .fwd-table tbody tr:last-child td:nth-child(6){border-bottom:1px solid var(--line-muted);border-radius:0 0 14px 0}
+  /* Bordures colorées : vert pour Serre (k 1,8), bleu clair pour Industriels
+     (k 2,2) -- mêmes couleurs que les courbes des graphes, cf. échange
+     utilisateur. */
+  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(2),.fwd-table tbody td:nth-child(2){border-left:1px solid var(--rdt-1)}
+  .fwd-table thead tr:first-child th:nth-child(2),.fwd-table thead tr:last-child th:nth-child(3),.fwd-table tbody td:nth-child(3){border-right:1px solid var(--rdt-1)}
+  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(5),.fwd-table tbody td:nth-child(5){border-left:1px solid var(--rdt-2)}
+  .fwd-table thead tr:first-child th:nth-child(4),.fwd-table thead tr:last-child th:nth-child(6),.fwd-table tbody td:nth-child(6){border-right:1px solid var(--rdt-2)}
+  .fwd-table thead tr:first-child th:nth-child(2){border-top:1px solid var(--rdt-1);border-radius:14px 14px 0 0}
+  .fwd-table thead tr:first-child th:nth-child(4){border-top:1px solid var(--rdt-2);border-radius:14px 14px 0 0}
+  .fwd-table tbody tr:last-child td:nth-child(2){border-bottom:1px solid var(--rdt-1);border-radius:0 0 0 14px}
+  .fwd-table tbody tr:last-child td:nth-child(3){border-bottom:1px solid var(--rdt-1);border-radius:0 0 14px 0}
+  .fwd-table tbody tr:last-child td:nth-child(5){border-bottom:1px solid var(--rdt-2);border-radius:0 0 0 14px}
+  .fwd-table tbody tr:last-child td:nth-child(6){border-bottom:1px solid var(--rdt-2);border-radius:0 0 14px 0}
 
   @media (max-width:1100px){
     body{height:auto;overflow:auto}
@@ -235,7 +244,7 @@
       </div>
 
       <div class="card accent-cogen spread-col">
-        <span class="section-title"><em>Clean spark spread</em> — +CO2 <span class="section-date" id="date-clean-spark"></span></span>
+        <span class="section-title"><em>Clean spark spread</em> <span class="section-date" id="date-clean-spark"></span></span>
         <div class="chart-wrap" id="chart-clean-spark"></div>
         <div class="legend" id="legend-clean-spark"></div>
       </div>
@@ -281,18 +290,34 @@
       </div>
 
       <div class="indic-group serre-indus-group">
-        <div class="card indic-col kpi-box">
+        <div class="card indic-col kpi-box ref-serre">
           <span class="kpi-label">Cogé serre <span class="badge-rendement">k 1,8</span> <span class="section-date" id="date-serre"></span></span>
           <div class="tb-row">
-            <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="serre-base">—</span></div>
-            <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="serre-peak">—</span></div>
+            <div class="tb-item">
+              <span class="tb-item-label">Base</span>
+              <span class="tb-item-value" id="serre-base">—</span>
+              <span id="serre-base-pill"></span>
+            </div>
+            <div class="tb-item">
+              <span class="tb-item-label">Peak</span>
+              <span class="tb-item-value" id="serre-peak">—</span>
+              <span id="serre-peak-pill"></span>
+            </div>
           </div>
         </div>
-        <div class="card indic-col kpi-box">
+        <div class="card indic-col kpi-box ref-indus">
           <span class="kpi-label">Cogé industriel <span class="badge-rendement">k 2,2</span> <span class="section-date" id="date-indus"></span></span>
           <div class="tb-row">
-            <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="indus-base">—</span></div>
-            <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="indus-peak">—</span></div>
+            <div class="tb-item">
+              <span class="tb-item-label">Base</span>
+              <span class="tb-item-value" id="indus-base">—</span>
+              <span id="indus-base-pill"></span>
+            </div>
+            <div class="tb-item">
+              <span class="tb-item-label">Peak</span>
+              <span class="tb-item-value" id="indus-peak">—</span>
+              <span id="indus-peak-pill"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -356,6 +381,10 @@
         q1: { base: 48.2, peak: 62.4 },
       },
     },
+    // Moyenne des 7 derniers jours (clean spark spread, €/MWh) -- pas
+    // d'historique réel calculé côté back pour l'instant, valeurs plausibles
+    // pour la pill "vs 7j" des cartes Cogé serre/industriel.
+    cogeRef7j: { serreBase: 34.9, serrePeak: 49.2, indusBase: 39.8, indusPeak: 59.6 },
     pp: { joursEcoules: 5, total: 22, enPP: true },
     mfrr: { hausseMoyenne: 62.3, hausseEcartPct: 8.4, baisseMoyenne: 41.7, baisseEcartPct: -5.2 },
   };
@@ -590,10 +619,17 @@
     // intégrer le coût carbone, pas seulement le spread brut). ---
     const cleanSerre = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, FACTEUR_SERRE));
     const cleanIndus = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, FACTEUR_INDUS));
-    setText("serre-base", `${fmt(moyenne(cleanSerre),1)} €/MWh`);
-    setText("serre-peak", `${fmt(moyenneFenetre(cleanSerre,8,20),1)} €/MWh`);
-    setText("indus-base", `${fmt(moyenne(cleanIndus),1)} €/MWh`);
-    setText("indus-peak", `${fmt(moyenneFenetre(cleanIndus,8,20),1)} €/MWh`);
+    const serreBase = moyenne(cleanSerre), serrePeak = moyenneFenetre(cleanSerre,8,20);
+    const indusBase = moyenne(cleanIndus), indusPeak = moyenneFenetre(cleanIndus,8,20);
+    const ref7j = MOCK_COGE.cogeRef7j;
+    setText("serre-base", `${fmt(serreBase,1)} €/MWh`);
+    setHtml("serre-base-pill", pillHtml(ecartPct(serreBase, ref7j.serreBase), "vs 7j"));
+    setText("serre-peak", `${fmt(serrePeak,1)} €/MWh`);
+    setHtml("serre-peak-pill", pillHtml(ecartPct(serrePeak, ref7j.serrePeak), "vs 7j"));
+    setText("indus-base", `${fmt(indusBase,1)} €/MWh`);
+    setHtml("indus-base-pill", pillHtml(ecartPct(indusBase, ref7j.indusBase), "vs 7j"));
+    setText("indus-peak", `${fmt(indusPeak,1)} €/MWh`);
+    setHtml("indus-peak-pill", pillHtml(ecartPct(indusPeak, ref7j.indusPeak), "vs 7j"));
 
     // --- Jours PP : toute la carte passe en orange quand on est en PP,
     // pas juste un badge secondaire -- cf. échange utilisateur. ---
