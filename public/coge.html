@@ -81,6 +81,7 @@
 
   .section-title{font-family:var(--font-titres);font-size:1.05rem;font-weight:500;letter-spacing:.01em;color:var(--text-dim)}
   .section-title em{font-style:normal;font-weight:700;color:var(--text)}
+  .section-date{font-family:var(--font-corps);font-size:.68rem;font-weight:400;color:var(--text-faint)}
 
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;box-shadow:0 2px 10px rgba(0,0,0,.18)}
   .card.accent-cogen{border-top:3px solid var(--cogen)}
@@ -228,13 +229,13 @@
 
     <section class="row-spreads">
       <div class="card accent-cogen spread-col">
-        <span class="section-title"><em>Spark spread</em></span>
+        <span class="section-title"><em>Spark spread</em> <span class="section-date" id="date-spark"></span></span>
         <div class="chart-wrap" id="chart-spark"></div>
         <div class="legend" id="legend-spark"></div>
       </div>
 
       <div class="card accent-cogen spread-col">
-        <span class="section-title"><em>Clean spark spread</em> — +CO2</span>
+        <span class="section-title"><em>Clean spark spread</em> — +CO2 <span class="section-date" id="date-clean-spark"></span></span>
         <div class="chart-wrap" id="chart-clean-spark"></div>
         <div class="legend" id="legend-clean-spark"></div>
       </div>
@@ -281,14 +282,14 @@
 
       <div class="indic-group serre-indus-group">
         <div class="card indic-col kpi-box">
-          <span class="kpi-label">Cogé serre <span class="badge-rendement">k 1,8</span></span>
+          <span class="kpi-label">Cogé serre <span class="badge-rendement">k 1,8</span> <span class="section-date" id="date-serre"></span></span>
           <div class="tb-row">
             <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="serre-base">—</span></div>
             <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="serre-peak">—</span></div>
           </div>
         </div>
         <div class="card indic-col kpi-box">
-          <span class="kpi-label">Cogé indus <span class="badge-rendement">k 2,2</span></span>
+          <span class="kpi-label">Cogé industriel <span class="badge-rendement">k 2,2</span> <span class="section-date" id="date-indus"></span></span>
           <div class="tb-row">
             <div class="tb-item"><span class="tb-item-label">Base</span><span class="tb-item-value" id="indus-base">—</span></div>
             <div class="tb-item"><span class="tb-item-label">Peak</span><span class="tb-item-value" id="indus-peak">—</span></div>
@@ -567,6 +568,10 @@
   }
 
   function render(spot){
+    // --- Date du jour, affichée dans les titres/cartes concernées ---
+    const dateAuj = new Date().toLocaleDateString("fr-FR", {day:"numeric", month:"short"});
+    ["date-spark", "date-clean-spark", "date-serre", "date-indus"].forEach(id => setText(id, dateAuj));
+
     // --- Courbes spark spread / clean spark spread, ×3 facteurs gaz/élec ---
     const seriesSpark = FACTEURS_GAZ_ELEC.map(k => spot.map(p => sparkSpread(p, MOCK_COGE.peg.prix, k)));
     const seriesClean = FACTEURS_GAZ_ELEC.map(k => spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, k)));
