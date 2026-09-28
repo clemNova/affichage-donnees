@@ -102,6 +102,12 @@
   .legend{display:flex;gap:14px;margin-top:8px;flex:0 0 auto}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--text-dim)}
   .legend-swatch{display:inline-block;width:12px;height:3px;border-radius:2px}
+  /* Légende partagée entre les 2 graphes spark spread/clean spark spread
+     (identique pour les deux, plus besoin de la dupliquer) -- un peu plus
+     grande, centrée sous les 2 cartes -- cf. échange utilisateur. */
+  .legend-shared{justify-content:center;margin-top:0;gap:24px}
+  .legend-shared .legend-item{font-size:.9rem}
+  .legend-shared .legend-swatch{width:18px;height:4px}
   .crosshair-tip{
     position:absolute;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);
     border-radius:6px;padding:6px 9px;font-family:var(--font-corps);font-size:.72rem;
@@ -124,10 +130,10 @@
 
   /* Base/Peak/SuperPeak empilés en colonne (pas côte à côte) -- cf. échange
      utilisateur. */
-  .cogeref-rows{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;justify-content:center}
+  .cogeref-rows{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;justify-content:center}
   .cogeref-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-  .cogeref-label{font-family:var(--font-titres);font-size:.68rem;color:var(--text-faint);flex:0 0 auto}
-  .cogeref-value{font-family:var(--font-corps);font-weight:700;font-size:1.05rem;font-variant-numeric:tabular-nums}
+  .cogeref-label{font-family:var(--font-titres);font-size:.85rem;color:var(--text-faint);flex:0 0 auto}
+  .cogeref-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums}
 
   /* Contour de couleur reliant chaque carte à sa courbe sur les graphes
      spark spread (k 1,8 = vert, k 2,2 = bleu clair) -- cf. échange utilisateur. */
@@ -135,7 +141,8 @@
   .ref-indus{border-color:var(--rdt-2);border-width:2px}
 
   /* --- Rangée 1 : spark spread / clean spark spread --- */
-  .row-spreads{flex:1.2;min-height:0;display:flex;gap:16px}
+  .spreads-wrap{flex:1.2;min-height:0;display:flex;flex-direction:column;gap:6px}
+  .row-spreads{flex:1;min-height:0;display:flex;gap:16px}
   .spread-col{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px 10px}
 
   .kpi-box{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:12px 16px}
@@ -143,7 +150,7 @@
   /* Variation sur sa propre ligne (pas à côté de la valeur) pour que ces
      cartes restent lisibles en colonne étroite -- cf. échange utilisateur. */
   .kpi-box .kpi-meta{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
-  .kpi-box .kpi-value{font-family:var(--font-corps);font-weight:700;font-size:2.2rem;font-variant-numeric:tabular-nums}
+  .kpi-box .kpi-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums}
 
   /* --- Rangée 2 : indicateurs --- */
   .row-indicateurs{flex:1;min-height:0;display:flex;gap:16px}
@@ -151,12 +158,14 @@
      rangée du bas (PP+mFRR, Peg+CO2, Serre+Indus) -- cf. échange utilisateur. */
   .indic-group{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
   /* PP/réserve plus large (les libellés/pills tiennent sur une ligne),
-     Serre/Indus un peu moins large, Peg/CO2 reste étroit -- cf. échange
-     utilisateur. */
+     Peg/CO2 reste étroit -- cf. échange utilisateur. */
   .pp-mfrr-group{flex:1.3}
   .peg-co2-group{flex:.7}
-  .serre-indus-group{flex:1}
   .indic-col{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;padding:12px 16px 10px;gap:6px}
+  /* Serre et Industriel : 2 cartes indépendantes côte à côte, chacune sur
+     toute la hauteur de la rangée (plus de regroupement empilé) -- cf.
+     échange utilisateur. */
+  .ref-serre,.ref-indus{flex:.6}
 
   /* PP moins haut, mFRR récupère encore plus de place pour que les mini-box
      hausse/baisse tiennent bien dedans -- cf. échange utilisateur. */
@@ -245,6 +254,7 @@
 
   <main class="dashboard">
 
+    <div class="spreads-wrap">
     <section class="row-spreads">
       <div class="card accent-cogen spread-col">
         <div class="chart-head">
@@ -252,7 +262,6 @@
           <span class="clock-mini" id="clock-spark">—</span>
         </div>
         <div class="chart-wrap" id="chart-spark"></div>
-        <div class="legend" id="legend-spark"></div>
       </div>
 
       <div class="card accent-cogen spread-col">
@@ -261,9 +270,10 @@
           <span class="clock-mini" id="clock-clean-spark">—</span>
         </div>
         <div class="chart-wrap" id="chart-clean-spark"></div>
-        <div class="legend" id="legend-clean-spark"></div>
       </div>
     </section>
+      <div class="legend legend-shared" id="legend-shared"></div>
+    </div>
 
     <section class="row-indicateurs">
       <div class="indic-group pp-mfrr-group">
@@ -304,7 +314,6 @@
         </div>
       </div>
 
-      <div class="indic-group serre-indus-group">
         <div class="card indic-col kpi-box ref-serre">
           <span class="kpi-label">Cogé serre <span class="section-date" id="date-serre"></span></span>
           <div class="cogeref-rows">
@@ -345,7 +354,6 @@
             </div>
           </div>
         </div>
-      </div>
 
       <div class="card indic-col fwd-card">
         <span class="section-title">Forward <em>clean spark spread</em></span>
@@ -583,12 +591,13 @@
 
     series.forEach((s, idx)=>{
       const points = s.map((v,i)=>[xScale(i*0.25), v === null || v === undefined || Number.isNaN(v) ? null : yScale.y(v)]);
-      if(opts.epaisseurVariable){
-        // Trait plus épais au-dessus de 0, plus fin en dessous -- cf.
-        // échange utilisateur.
+      if(opts.pointilleNegatif){
+        // Trait normal au-dessus de 0, pointillé serré en dessous (le gras
+        // ne rendait pas bien à l'écran) -- cf. échange utilisateur.
         segmentsParSigne(s, points).forEach(seg => {
-          const largeur = seg.signe === "pos" ? 3 : 1.3;
-          svg.appendChild(svgEl("path", {d:seg.d, fill:"none", stroke:colors.stroke[idx], "stroke-width":largeur, "stroke-linecap":"round", "stroke-linejoin":"round"}));
+          const attrs = {d:seg.d, fill:"none", stroke:colors.stroke[idx], "stroke-width":2, "stroke-linecap":"round", "stroke-linejoin":"round"};
+          if(seg.signe === "neg") attrs["stroke-dasharray"] = "2,2";
+          svg.appendChild(svgEl("path", attrs));
         });
       } else {
         const pathD = stepPath(points);
@@ -763,14 +772,13 @@
 
     buildChart("chart-spark", seriesSpark, {stroke:COULEURS_FACTEUR, labels:FACTEURS_GAZ_ELEC.map(k=>`k ${k}`)}, {
       unit:"€/MWh", ariaLabel:"Spark spread sur la journée, pour 3 facteurs gaz/élec",
-      epaisseurVariable:true, now:true, nowHour,
+      pointilleNegatif:true, now:true, nowHour,
     });
     buildChart("chart-clean-spark", seriesClean, {stroke:COULEURS_FACTEUR, labels:FACTEURS_GAZ_ELEC.map(k=>`k ${k}`)}, {
       unit:"€/MWh", ariaLabel:"Clean spark spread sur la journée, pour 3 facteurs gaz/élec",
-      epaisseurVariable:true, now:true, nowHour,
+      pointilleNegatif:true, now:true, nowHour,
     });
-    construitLegende("legend-spark", FACTEURS_GAZ_ELEC, COULEURS_FACTEUR);
-    construitLegende("legend-clean-spark", FACTEURS_GAZ_ELEC, COULEURS_FACTEUR);
+    construitLegende("legend-shared", FACTEURS_GAZ_ELEC, COULEURS_FACTEUR);
 
     // --- Valeurs instantanées cogé serre / indus (clean spark spread, cf.
     // note affichée : la valeur "réelle" pour une décision de production doit
