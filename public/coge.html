@@ -749,9 +749,14 @@
       ligneFwd(labelTrimestreApresM2(), fwd.serre.q1, fwd.indus.q1, ref.serre.q1, ref.indus.q1);
   }
 
-  function render(spot){
+  function render(spot, pegReel){
     const maintenant = new Date();
     const nowHour = maintenant.getHours() + maintenant.getMinutes()/60 + maintenant.getSeconds()/3600;
+
+    // --- Peg gaz : prix réel (NOOS, via /api/kpis) si le pipeline a déjà
+    // tourné, sinon repli sur le mock -- même logique que le spot élec.
+    // POC — la partie mock disparaîtra une fois le cron NOOS en prod. ---
+    const pegPrix = pegReel ? pegReel.prix : MOCK_COGE.peg.prix;
 
     // --- Date du jour (cartes Cogé serre/industriel) + horloge date+heure
     // (graphes spark spread/clean spark spread, comme le graphe day-ahead du
@@ -763,8 +768,8 @@
     setHtml("clock-clean-spark", clockHtml);
 
     // --- Courbes spark spread / clean spark spread, ×3 facteurs gaz/élec ---
-    const seriesSpark = FACTEURS_GAZ_ELEC.map(k => spot.map(p => sparkSpread(p, MOCK_COGE.peg.prix, k)));
-    const seriesClean = FACTEURS_GAZ_ELEC.map(k => spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, k)));
+    const seriesSpark = FACTEURS_GAZ_ELEC.map(k => spot.map(p => sparkSpread(p, pegPrix, k)));
+    const seriesClean = FACTEURS_GAZ_ELEC.map(k => spot.map(p => cleanSparkSpread(p, pegPrix, MOCK_COGE.co2.prix, k)));
 
     buildChart("chart-spark", seriesSpark, {stroke:COULEURS_FACTEUR, labels:FACTEURS_GAZ_ELEC.map(k=>`k ${k}`)}, {
       unit:"€/MWh", ariaLabel:"Spark spread sur la journée, pour 3 facteurs gaz/élec",
@@ -779,8 +784,8 @@
     // --- Valeurs instantanées cogé serre / indus (clean spark spread, cf.
     // note affichée : la valeur "réelle" pour une décision de production doit
     // intégrer le coût carbone, pas seulement le spread brut). ---
-    const cleanSerre = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, FACTEUR_SERRE));
-    const cleanIndus = spot.map(p => cleanSparkSpread(p, MOCK_COGE.peg.prix, MOCK_COGE.co2.prix, FACTEUR_INDUS));
+    const cleanSerre = spot.map(p => cleanSparkSpread(p, pegPrix, MOCK_COGE.co2.prix, FACTEUR_SERRE));
+    const cleanIndus = spot.map(p => cleanSparkSpread(p, pegPrix, MOCK_COGE.co2.prix, FACTEUR_INDUS));
     const serreBase = moyenne(cleanSerre), serrePeak = moyenneFenetre(cleanSerre,8,20), serreSuperPeak = superPeak(cleanSerre);
     const indusBase = moyenne(cleanIndus), indusPeak = moyenneFenetre(cleanIndus,8,20), indusSuperPeak = superPeak(cleanIndus);
     const ref7j = MOCK_COGE.cogeRef7j;
@@ -812,8 +817,8 @@
     setHtml("mfrr-down-moyenne-pill", pillHtml(MOCK_COGE.mfrr.baisseEcartPct, "vs mois A-1"));
 
     // --- Peg / CO2 vs 7 derniers jours ---
-    setText("peg-valeur", `${fmt(MOCK_COGE.peg.prix,1)} €/MWh`);
-    setHtml("peg-pill", pillHtml(ecartPct(MOCK_COGE.peg.prix, moyenne(MOCK_COGE.peg.serie7j)), "vs 7j"));
+    setText("peg-valeur", `${fmt(pegPrix,1)} €/MWh`);
+    setHtml("peg-pill", pillHtml(pegReel ? pegReel.ecartPct : ecartPct(MOCK_COGE.peg.prix, moyenne(MOCK_COGE.peg.serie7j)), "vs 7j"));
     setText("co2-valeur", `${fmt(MOCK_COGE.co2.prix,1)} €/tCO2`);
     setHtml("co2-pill", pillHtml(ecartPct(MOCK_COGE.co2.prix, moyenne(MOCK_COGE.co2.serie7j)), "vs 7j"));
 
@@ -822,27 +827,32 @@
   }
 
   let dernierSpot = null;
+  let dernierPeg = null;
 
   async function chargerEtRendre(){
-    let spot = null;
+    let spot = null, peg = null;
     try{
       const reponse = await fetch("/api/kpis", {cache:"no-store"});
       if(reponse.ok){
         const snap = await reponse.json();
         if(snap.series && snap.series.da && snap.series.da.length) spot = remplitJournee(snap.series.da);
+        if(snap.peg_prix !== undefined && snap.peg_prix !== null){
+          peg = {prix: snap.peg_prix, ecartPct: snap.peg_ecart_pct};
+        }
       }
     }catch(erreur){
-      console.warn("Spot réel indisponible, utilisation d'un profil de secours :", erreur);
+      console.warn("Spot/Peg réels indisponibles, utilisation d'un profil de secours :", erreur);
     }
     dernierSpot = spot || serieSpotSecours();
-    render(dernierSpot);
+    dernierPeg = peg;
+    render(dernierSpot, dernierPeg);
   }
 
   // Redessin LOCAL (horloge + repère "maintenant" sur les graphes), sans
   // appel réseau -- rejoue simplement render() avec l'heure actuelle sur le
   // dernier spot connu, même principe que le dashboard BESS.
   function retracerLocalement(){
-    if(dernierSpot) render(dernierSpot);
+    if(dernierSpot) render(dernierSpot, dernierPeg);
   }
 
   const btnFullscreen = document.getElementById("btn-fullscreen");

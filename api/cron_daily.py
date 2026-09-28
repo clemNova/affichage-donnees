@@ -58,6 +58,21 @@ def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
     except Exception:
         resultats["mfrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
 
+    try:
+        # PEG gaz (NOOS) : un seul point par jour, pas de fenetre -- ecrit
+        # directement dans hist:noos_peg (cf. store.maj_prix_journalier),
+        # pas de raw:noos_peg puisqu'il n'y a pas de courbe 15 min a faire
+        # vieillir comme pour da/fcr/afrr/mfrr.
+        spot_peg = fetchers.fetch_peg_spot()
+        if spot_peg:
+            jour_iso = spot_peg[0]["ts"][:10]
+            store.maj_prix_journalier("noos_peg", jour_iso, spot_peg[0]["prix"])
+            resultats["noos_peg"] = 1
+        else:
+            resultats["noos_peg"] = 0
+    except Exception:
+        resultats["noos_peg"] = f"echec: {traceback.format_exc(limit=2)}"
+
     return resultats
 
 
