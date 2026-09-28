@@ -131,8 +131,10 @@
   /* Base/Peak/SuperPeak empilés en colonne (pas côte à côte) -- cf. échange
      utilisateur. */
   .cogeref-rows{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;justify-content:center}
-  .cogeref-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .cogeref-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .cogeref-label{font-family:var(--font-titres);font-size:.85rem;color:var(--text-faint);flex:0 0 auto}
+  /* Valeur puis variation en dessous (pas à côté) -- cf. échange utilisateur. */
+  .cogeref-value-col{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
   .cogeref-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums}
 
   /* Contour de couleur reliant chaque carte à sa courbe sur les graphes
@@ -319,18 +321,15 @@
           <div class="cogeref-rows">
             <div class="cogeref-row">
               <span class="cogeref-label">Base</span>
-              <span class="cogeref-value" id="serre-base">—</span>
-              <span id="serre-base-pill"></span>
+              <div class="cogeref-value-col"><span class="cogeref-value" id="serre-base">—</span><span id="serre-base-pill"></span></div>
             </div>
             <div class="cogeref-row">
               <span class="cogeref-label">Peak</span>
-              <span class="cogeref-value" id="serre-peak">—</span>
-              <span id="serre-peak-pill"></span>
+              <div class="cogeref-value-col"><span class="cogeref-value" id="serre-peak">—</span><span id="serre-peak-pill"></span></div>
             </div>
             <div class="cogeref-row">
               <span class="cogeref-label">SuperPeak</span>
-              <span class="cogeref-value" id="serre-superpeak">—</span>
-              <span id="serre-superpeak-pill"></span>
+              <div class="cogeref-value-col"><span class="cogeref-value" id="serre-superpeak">—</span><span id="serre-superpeak-pill"></span></div>
             </div>
           </div>
         </div>
@@ -339,18 +338,15 @@
           <div class="cogeref-rows">
             <div class="cogeref-row">
               <span class="cogeref-label">Base</span>
-              <span class="cogeref-value" id="indus-base">—</span>
-              <span id="indus-base-pill"></span>
+              <div class="cogeref-value-col"><span class="cogeref-value" id="indus-base">—</span><span id="indus-base-pill"></span></div>
             </div>
             <div class="cogeref-row">
               <span class="cogeref-label">Peak</span>
-              <span class="cogeref-value" id="indus-peak">—</span>
-              <span id="indus-peak-pill"></span>
+              <div class="cogeref-value-col"><span class="cogeref-value" id="indus-peak">—</span><span id="indus-peak-pill"></span></div>
             </div>
             <div class="cogeref-row">
               <span class="cogeref-label">SuperPeak</span>
-              <span class="cogeref-value" id="indus-superpeak">—</span>
-              <span id="indus-superpeak-pill"></span>
+              <div class="cogeref-value-col"><span class="cogeref-value" id="indus-superpeak">—</span><span id="indus-superpeak-pill"></span></div>
             </div>
           </div>
         </div>
