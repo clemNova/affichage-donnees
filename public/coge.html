@@ -133,9 +133,9 @@
   .cogeref-label{font-family:var(--font-titres);font-size:.85rem;color:var(--text-faint);flex:0 0 auto}
   /* Valeur puis variation en dessous (pas à côté) -- cf. échange utilisateur. */
   .cogeref-value-col{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-  .cogeref-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums}
+  .cogeref-value{font-family:var(--font-corps);font-weight:700;font-size:2rem;font-variant-numeric:tabular-nums;line-height:1.1}
   /* Unité plus petite que la valeur -- cf. échange utilisateur. */
-  .cogeref-value .unite-petite{font-size:.55em;font-weight:500;color:var(--text-dim)}
+  .cogeref-value .unite-petite{display:block;font-size:.42em;font-weight:500;color:var(--text-dim);line-height:1.2}
 
   /* Contour de couleur reliant chaque carte à sa courbe sur les graphes
      spark spread (k 1,8 = vert, k 2,2 = bleu clair) -- cf. échange utilisateur. */
@@ -361,7 +361,7 @@
         <table class="fwd-table">
           <thead>
             <tr><th></th><th colspan="2">Serre (k=1,8)</th><th class="fwd-spacer"></th><th colspan="2">Industriels (k=2,2)</th></tr>
-            <tr><th></th><th>Peak</th><th>Base</th><th class="fwd-spacer"></th><th>Peak</th><th>Base</th></tr>
+            <tr><th></th><th>Base</th><th>Peak</th><th class="fwd-spacer"></th><th>Base</th><th>Peak</th></tr>
           </thead>
           <tbody id="fwd-body"></tbody>
         </table>
@@ -744,11 +744,11 @@
     return `<td><div class="fwd-cell"><span class="fwd-cell-value">${fmt(valeur,1)}</span>${pillHtml(ecartPct(valeur, reference), "vs 7j")}</div></td>`;
   }
   // Une ligne = un produit (maturité), Serre puis Industriels côte à côte
-  // (Peak avant Base, colonne vide .fwd-spacer entre les 2 blocs) -- cf.
-  // maquette utilisateur.
+  // (Base avant Peak, colonne vide .fwd-spacer entre les 2 blocs) -- cf.
+  // échange utilisateur.
   function ligneFwd(produit, serre, indus, serreRef, indusRef){
-    return `<tr><th>${produit}</th>${celluleFwd(serre.peak, serreRef.peak)}${celluleFwd(serre.base, serreRef.base)}` +
-      `<td class="fwd-spacer"></td>${celluleFwd(indus.peak, indusRef.peak)}${celluleFwd(indus.base, indusRef.base)}</tr>`;
+    return `<tr><th>${produit}</th>${celluleFwd(serre.base, serreRef.base)}${celluleFwd(serre.peak, serreRef.peak)}` +
+      `<td class="fwd-spacer"></td>${celluleFwd(indus.base, indusRef.base)}${celluleFwd(indus.peak, indusRef.peak)}</tr>`;
   }
 
   // Recalcule le clean spark spread forward (Base/Peak) pour une période
