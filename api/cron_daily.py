@@ -79,6 +79,20 @@ def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
         resultats["mfrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
 
     try:
+        # Jours PP (API RTE Signal v2, cf. guide RTE_GU_API_Signal fourni par
+        # l'utilisateur) -- meme fenetre que da/fcr/afrr/mfrr (hier ->
+        # surlendemain), couvre largement les preconisations RTE (signal du
+        # lendemain/surlendemain). Non opposable avant le 01/11/2026, cf.
+        # fetchers.fetch_signal_pp -- peut renvoyer {} en attendant.
+        identifiants_signal = charge_identifiants_rte("SIGNAL")
+        signaux = fetchers.fetch_signal_pp(debut, fin, identifiants_signal)
+        if signaux:
+            store.maj_signal_pp(signaux)
+        resultats["signal_pp"] = signaux or "aucune donnee"
+    except Exception:
+        resultats["signal_pp"] = f"echec: {traceback.format_exc(limit=2)}"
+
+    try:
         # PEG gaz (NOOS) : un seul point par jour, pas de fenetre -- ecrit
         # directement dans hist:noos_peg (cf. store.maj_prix_journalier),
         # pas de raw:noos_peg puisqu'il n'y a pas de courbe 15 min a faire

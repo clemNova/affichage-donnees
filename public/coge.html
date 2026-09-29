@@ -430,7 +430,9 @@
       serreBase: 34.9, serrePeak: 49.2, serreSuperPeak: 58.4,
       indusBase: 39.8, indusPeak: 59.6, indusSuperPeak: 68.9,
     },
-    pp: { joursEcoules: 5, total: 22, enPP: false },
+    // total = 25 (15 jours PP1 + 10 jours PP2 exclusifs max/saison, cf.
+    // guide RTE API Signal) -- pas exposé par l'API, reste une constante.
+    pp: { joursEcoules: 5, total: 25, enPP: false },
     mfrr: { hausseMoyenne: 62.3, hausseEcartPct: 8.4, baisseMoyenne: 41.7, baisseEcartPct: -5.2 },
   };
 
@@ -828,12 +830,16 @@
     setText("indus-superpeak", `${fmt(indusSuperPeak,1)} €/MWh`);
     setHtml("indus-superpeak-pill", pillHtml(ecartPct(indusSuperPeak, ref7j.indusSuperPeak), "vs 7j"));
 
-    // --- Jours PP : toute la carte passe en orange quand on est en PP,
-    // pas juste un badge secondaire -- cf. échange utilisateur. ---
-    setText("pp-jours", String(MOCK_COGE.pp.joursEcoules));
+    // --- Jours PP (API RTE Signal) si dispo, sinon mock -- toute la carte
+    // passe en orange quand on est en PP, pas juste un badge secondaire --
+    // cf. échange utilisateur. "total" (max de la saison) n'est pas exposé
+    // par l'API RTE, reste une constante (25 = 15 PP1 + 10 PP2 exclusifs,
+    // cf. guide RTE Signal). ---
+    const pp = reel.pp || MOCK_COGE.pp;
+    setText("pp-jours", String(pp.joursEcoules));
     setText("pp-total", `/${MOCK_COGE.pp.total}`);
-    setText("pp-status", MOCK_COGE.pp.enPP ? "Aujourd'hui : jour PP" : "Aujourd'hui : hors PP");
-    document.getElementById("pp-card").classList.toggle("actif", MOCK_COGE.pp.enPP);
+    setText("pp-status", pp.enPP ? "Aujourd'hui : jour PP" : "Aujourd'hui : hors PP");
+    document.getElementById("pp-card").classList.toggle("actif", pp.enPP);
 
     // --- mFRR : valeurs réelles (pipeline RTE déjà utilisé par le dashboard
     // BESS, via /api/kpis) si dispo, sinon repli mock -- cf. échange
@@ -879,6 +885,12 @@
         }
         if(snap.elec_forward){
           reel.forwardElec = snap.elec_forward; // {m1:{base,peak}, m2:{...}, q1:{...}}, €/MWh
+        }
+        // Jours PP (API RTE Signal) -- pp_jours_ecoules toujours présent une
+        // fois le cron passé (0 si la saison n'a pas commencé) ; pp_en_pp
+        // absent = jour inconnu, traité comme "pas PP" par défaut.
+        if(snap.pp_jours_ecoules !== undefined && snap.pp_jours_ecoules !== null){
+          reel.pp = { joursEcoules: snap.pp_jours_ecoules, enPP: snap.pp_en_pp === true };
         }
         // mFRR : déjà alimenté par le pipeline RTE du dashboard BESS, pas
         // besoin d'une pipeline dédiée pour Cogé -- cf. échange utilisateur.

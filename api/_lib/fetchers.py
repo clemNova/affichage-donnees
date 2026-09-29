@@ -178,3 +178,23 @@ def fetch_elec_forward_base_peak(date_debut: pd.Timestamp, date_fin: pd.Timestam
     valeurs_peak = df.loc[jour_ouvre & heure_peak, "value"]
     peak = float(valeurs_peak.mean()) if len(valeurs_peak) else None
     return {"base": base, "peak": peak}
+
+
+def fetch_signal_pp(date_debut: pd.Timestamp, date_fin: pd.Timestamp, identifiants: IdentifiantsRTE) -> dict[str, bool]:
+    """Signal jours PP (Periode de Pointe, mecanisme de capacite), API RTE
+    'Signal' v2 -- cf. guide RTE_GU_API_Signal_v02.00.01 fourni par
+    l'utilisateur. Renvoie {date_iso: bool}, un booleen par jour calendaire
+    dans [date_debut, date_fin]. ATTENTION : les donnees ne sont opposables
+    (officielles) qu'a partir du 01/11/2026 (cf. guide, §4.1.1.1) -- avant
+    cette date l'API peut repondre normalement mais a titre indicatif
+    seulement, ou ne rien signaler du tout si la saison n'a pas commence."""
+    url = "https://digital.iservices.rte-france.com/open_api/signal/v2/signals"
+    params = {"start_date": date_debut.isoformat(), "end_date": date_fin.isoformat()}
+    reponse = appelle_api_rte(url, identifiants, params=params)
+    resultat: dict[str, bool] = {}
+    for bloc in reponse.get("signals", []):
+        if bloc.get("type") != "PP":
+            continue
+        for valeur in bloc.get("values", []):
+            resultat[valeur["start_date"][:10]] = bool(valeur["value"])
+    return resultat

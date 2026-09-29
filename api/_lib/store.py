@@ -50,6 +50,22 @@ def _prune_hist(hist: dict) -> dict:
     return {k: v for k, v in hist.items() if k >= limite}
 
 
+def _saison_pp(jour: pd.Timestamp) -> tuple[str, str]:
+    """Saison PP (mecanisme de capacite, 1er novembre -> 31 mars) contenant
+    `jour` -- si `jour` est hors saison (avril-octobre), renvoie la saison A
+    VENIR (1er novembre de la meme annee), donc 0 jour ecoule tant qu'elle
+    n'a pas commence. Renvoie (debut_iso, fin_iso), fin EXCLUSIVE."""
+    debut_nov = pd.Timestamp(year=jour.year, month=11, day=1)
+    if jour >= debut_nov:
+        debut = debut_nov
+    elif jour < pd.Timestamp(year=jour.year, month=4, day=1):
+        debut = pd.Timestamp(year=jour.year - 1, month=11, day=1)
+    else:
+        debut = debut_nov  # avril-octobre : saison a venir
+    fin = pd.Timestamp(year=debut.year + 1, month=4, day=1)
+    return debut.date().isoformat(), fin.date().isoformat()
+
+
 def maj_serie_connue_avance(nom_domaine: str, points_bruts: list[dict], avec_indicateurs_da: bool = False) -> int:
     """Fait basculer dans `hist:<domaine>` toute journee COMPLETE presente
     dans l'ancien `raw:<domaine>` (timestamp < aujourd'hui) avant de le
@@ -103,6 +119,20 @@ def maj_forward(nom_domaine: str, valeurs: dict) -> None:
     M+2" sont relatives a AUJOURD'HUI, donc glissent avec le calendrier a
     chaque execution du cron, cf. cron_daily._fenetre_mois_plus)."""
     kv.set_json(f"forward:{nom_domaine}", valeurs)
+
+
+PRUNE_JOURS_SIGNAL_PP = 400  # couvre une saison PP complete (nov-mars) + marge
+
+
+def maj_signal_pp(signaux: dict[str, bool]) -> None:
+    """Fusionne les nouveaux signaux jours PP (API RTE Signal, cf.
+    fetchers.fetch_signal_pp) dans signal_pp:jours -- retention PLUS LONGUE
+    que hist:<domaine> (35j, cf. PRUNE_JOURS) car il faut pouvoir compter les
+    jours PP depuis le debut de la saison (nov-mars, ~5 mois)."""
+    jours = kv.get_json("signal_pp:jours", {})
+    jours.update(signaux)
+    limite = (pd.Timestamp.now(tz="Europe/Paris").normalize() - pd.Timedelta(days=PRUNE_JOURS_SIGNAL_PP)).date().isoformat()
+    kv.set_json("signal_pp:jours", {d: v for d, v in jours.items() if d >= limite})
 
 
 def maj_activation(nouveaux_points: list[dict]) -> int:
@@ -276,6 +306,19 @@ def calcule_et_sauvegarde_snapshot() -> dict:
     forward_elec = kv.get_json("forward:noos_elec", {})
     if forward_elec:
         ligne["elec_forward"] = forward_elec
+
+    # Jours PP (API RTE Signal) : ecrit par cron_daily (cf. store.maj_signal_pp).
+    # ATTENTION : donnees non opposables (officielles) avant le 01/11/2026,
+    # cf. fetchers.fetch_signal_pp -- pp_jours_ecoules vaudra normalement 0
+    # tant que la saison n'a pas commence.
+    signal_pp = kv.get_json("signal_pp:jours", {})
+    jour_iso = jour.date().isoformat()
+    if jour_iso in signal_pp:
+        ligne["pp_en_pp"] = bool(signal_pp[jour_iso])
+    debut_saison, fin_saison = _saison_pp(jour)
+    ligne["pp_jours_ecoules"] = sum(
+        1 for d, v in signal_pp.items() if v and debut_saison <= d < fin_saison
+    )
 
     points_activation = kv.get_json("raw:afrr_activation", [])
     if points_activation:
