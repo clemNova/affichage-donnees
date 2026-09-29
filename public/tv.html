@@ -13,7 +13,11 @@
      changement de page. En gardant ce document fixe et en ne changeant que
      le `src` de l'iframe, le plein écran demandé ICI reste actif -- cf.
      échange utilisateur. C'est CETTE page qu'il faut ouvrir en plein écran
-     sur l'écran TV, pas index.html/coge.html directement. */
+     sur l'écran TV, pas index.html/coge.html directement.
+
+     Carrousel piloté par le plein écran lui-même (pas de bouton séparé) :
+     entrer en plein écran démarre le carrousel, en sortir l'arrête -- cf.
+     échange utilisateur ("si on est en plein écran on est en carrousel"). */
   html,body{margin:0;padding:0;height:100%;background:#1E3872;overflow:hidden}
   iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
   .tv-controls{position:fixed;top:10px;right:10px;z-index:10;display:flex;gap:8px}
@@ -28,8 +32,7 @@
 <body>
   <iframe id="frame" src="index.html" title="Dashboard"></iframe>
   <div class="tv-controls">
-    <button class="tv-btn" id="btn-carousel" title="Carrousel" aria-label="Activer/mettre en pause le carrousel">—</button>
-    <button class="tv-btn" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
+    <button class="tv-btn" id="btn-fullscreen" title="Plein écran = carrousel actif" aria-label="Plein écran">⛶</button>
   </div>
 
 <script>
@@ -41,43 +44,18 @@
   let indexPage = 0;
   const frame = document.getElementById("frame");
 
-  // "?carousel=off"/"=on" force l'état (prioritaire sur le bouton, pratique
-  // pour tester) ; sinon état mémorisé en local, par navigateur/écran.
-  function carouselActif(){
-    const qp = new URLSearchParams(location.search).get("carousel");
-    if(qp === "off") return false;
-    if(qp === "on") return true;
-    try{ return localStorage.getItem("carousel-actif") !== "off"; }catch(erreur){ return true; }
-  }
-  function definitCarouselActif(actif){
-    try{ localStorage.setItem("carousel-actif", actif ? "on" : "off"); }catch(erreur){}
-  }
-
-  const btnCarousel = document.getElementById("btn-carousel");
-  function metAJourBoutonCarousel(){
-    const actif = carouselActif();
-    btnCarousel.textContent = actif ? "⏸" : "▶";
-    btnCarousel.title = actif ? "Mettre le carrousel en pause" : "Activer le carrousel (bascule auto toutes les 2 min)";
-  }
-
   let idCarousel = null;
   function suivant(){
     indexPage = (indexPage + 1) % PAGES.length;
     frame.src = PAGES[indexPage] + location.search;
-    programmeCarousel();
+    programmeCarousel(true);
   }
-  function programmeCarousel(){
+  function programmeCarousel(actif){
     if(idCarousel) clearTimeout(idCarousel);
-    if(!carouselActif()) return;
+    idCarousel = null;
+    if(!actif) return;
     idCarousel = setTimeout(suivant, CAROUSEL_MS);
   }
-  btnCarousel.addEventListener("click", () => {
-    definitCarouselActif(!carouselActif());
-    metAJourBoutonCarousel();
-    programmeCarousel();
-  });
-  metAJourBoutonCarousel();
-  programmeCarousel();
 
   const btnFullscreen = document.getElementById("btn-fullscreen");
   btnFullscreen.addEventListener("click", () => {
@@ -85,7 +63,9 @@
     else document.documentElement.requestFullscreen().catch(()=>{});
   });
   document.addEventListener("fullscreenchange", () => {
-    btnFullscreen.textContent = document.fullscreenElement ? "⤫" : "⛶";
+    const actif = !!document.fullscreenElement;
+    btnFullscreen.textContent = actif ? "⤫" : "⛶";
+    programmeCarousel(actif);
   });
 })();
 </script>
