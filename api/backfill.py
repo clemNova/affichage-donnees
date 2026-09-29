@@ -1,8 +1,12 @@
 """Backfill ponctuel de l'historique (hist:da, hist:fcr, hist:afrr_up_capa,
-hist:afrr_down_capa, hist:mfrr_up_capa, hist:mfrr_down_capa, hist:noos_peg)
-directement depuis les API RTE/ENTSO-E/NOOS, qui exposent aussi les prix
-PASSES -- evite d'attendre 35 jours (ou 7 pour la pill "vs 7j" du Peg) que
-cron_daily les accumule naturellement jour par jour.
+hist:afrr_down_capa, hist:mfrr_up_capa, hist:mfrr_down_capa) directement
+depuis les API RTE/ENTSO-E, qui exposent aussi les prix PASSES -- evite
+d'attendre 35 jours que cron_daily les accumule naturellement jour par jour.
+
+Le backfill PEG (NOOS) est un endpoint SEPARE (backfill_peg.py) : cette
+fonction-ci depasse deja le timeout Vercel Hobby (60s) a elle seule (cf.
+contrainte 2 ci-dessous) -- inutile de faire attendre le PEG (un seul appel
+NOOS, rapide) derriere ce goulot.
 
 Deux contraintes combinees, decouvertes en usage reel :
 1. Un seul appel ENTSO-E/RTE sur une fenetre large (35j) ne renvoie EN
@@ -131,21 +135,6 @@ def _backfill_mfrr_capa(debut_globale: pd.Timestamp, fin_globale: pd.Timestamp) 
     return detail
 
 
-def _backfill_peg(debut_globale: pd.Timestamp, fin_globale: pd.Timestamp) -> list[dict]:
-    """PEG gaz (NOOS) : UNE valeur par jour (pas 15 min comme RTE/ENTSO-E),
-    donc pas de troncature a chunker -- un seul appel sur toute la fenetre
-    (~35 points max) suffit. fetch_peg_forward() est generique (meme
-    endpoint NOOS que le forward, juste une fenetre PASSEE ici) -- cf.
-    echange utilisateur ("tu peux avoir l'historique avec l'API NOOS")."""
-    try:
-        points = fetchers.fetch_peg_forward(debut_globale, fin_globale)
-    except Exception:
-        return [{"fenetre": "toutes", "erreur": traceback.format_exc(limit=2)}]
-    for point in points:
-        store.maj_prix_journalier("noos_peg", point["ts"][:10], point["prix"])
-    return [{"fenetre": f"{debut_globale.date()}..{fin_globale.date()}", "n": len(points)}]
-
-
 def _total(detail: list[dict], cle: str = "n") -> int:
     return sum(d[cle] for d in detail if cle in d)
 
@@ -155,17 +144,15 @@ def executer() -> dict:
     fin_globale = maintenant.normalize()  # exclut aujourd'hui, journee incomplete
     debut_globale = fin_globale - pd.Timedelta(days=JOURS_BACKFILL)
 
-    with ThreadPoolExecutor(max_workers=5) as executeur:
+    with ThreadPoolExecutor(max_workers=4) as executeur:
         futur_da = executeur.submit(_backfill_da, debut_globale, fin_globale)
         futur_fcr = executeur.submit(_backfill_fcr, debut_globale, fin_globale)
         futur_capa = executeur.submit(_backfill_afrr_capa, debut_globale, fin_globale)
         futur_capa_mfrr = executeur.submit(_backfill_mfrr_capa, debut_globale, fin_globale)
-        futur_peg = executeur.submit(_backfill_peg, debut_globale, fin_globale)
         detail_da = futur_da.result()
         detail_fcr = futur_fcr.result()
         detail_capa = futur_capa.result()
         detail_capa_mfrr = futur_capa_mfrr.result()
-        detail_peg = futur_peg.result()
 
     # Chaque fenetre de backfill ECRASE raw:<domaine> avec SES points
     # (store.maj_serie_connue_avance) -- la derniere fenetre s'arretant a
@@ -193,6 +180,5 @@ def executer() -> dict:
             "down_total": _total(detail_capa_mfrr, "down"),
             "detail_par_chunk": detail_capa_mfrr,
         },
-        "noos_peg": {"total": _total(detail_peg), "detail": detail_peg},
         "restauration_fenetre_courante": restauration,
     }
