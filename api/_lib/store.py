@@ -32,6 +32,18 @@ DIRECTIONS_CAPACITE = {"up": "afrr_up_capa", "down": "afrr_down_capa"}
 DIRECTIONS_CAPACITE_MFRR = {"up": "mfrr_up_capa", "down": "mfrr_down_capa"}
 DIRECTIONS_ACTIVATION = {"up": "up", "down": "down"}
 
+# --- Cogé serre/industriel (clean spark spread) : memes constantes/formules
+# que coge.html cote frontend (a garder synchronisees si l'une des deux
+# evolue) -- calculees et stockees ICI (Python) pour beneficier d'une vraie
+# comparaison "vs 7j" (hist_coge:<serre|indus>), au lieu d'une reference
+# inventee cote client. CO2 reste une constante mock (pas de pipeline reelle
+# pour l'instant) -- cf. echange utilisateur.
+FACTEUR_SERRE_COGE = 1.8
+FACTEUR_INDUS_COGE = 2.2
+FACTEUR_EMISSION_CO2_COGE = 0.185  # tCO2 / MWh_gaz (PCI)
+RATIO_PCS_PCI_COGE = 1.11
+CO2_PRIX_MOCK_COGE = 80.0  # €/tCO2 -- POC, pas de pipeline reelle
+
 
 def _maintenant() -> pd.Timestamp:
     return pd.Timestamp.now(tz="Europe/Paris").tz_localize(None)
@@ -119,6 +131,68 @@ def maj_forward(nom_domaine: str, valeurs: dict) -> None:
     M+2" sont relatives a AUJOURD'HUI, donc glissent avec le calendrier a
     chaque execution du cron, cf. cron_daily._fenetre_mois_plus)."""
     kv.set_json(f"forward:{nom_domaine}", valeurs)
+
+
+def _clean_spark_spread_coge(prix_elec: float, prix_gaz_pcs: float, prix_co2: float, facteur: float) -> float:
+    """Meme formule que cleanSparkSpread() dans coge.html : facteur = MWh_gaz
+    (PCI) par MWh_elec (pas un rendement <1, cf. echange utilisateur)."""
+    prix_gaz_pci = prix_gaz_pcs * RATIO_PCS_PCI_COGE
+    return prix_elec - (prix_gaz_pci + FACTEUR_EMISSION_CO2_COGE * prix_co2) * facteur
+
+
+def _super_peak_coge(serie: pd.Series) -> float:
+    """Moyenne des 3 meilleures heures CONSECUTIVES (fenetre glissante de 12
+    quarts d'heure) -- meme definition que superPeak() dans coge.html."""
+    valeurs = serie.dropna().to_numpy()
+    fenetre_n = 12
+    meilleur = None
+    for i in range(len(valeurs) - fenetre_n + 1):
+        fenetre = valeurs[i:i + fenetre_n]
+        moy = float(fenetre.mean())
+        if meilleur is None or moy > meilleur:
+            meilleur = moy
+    return meilleur if meilleur is not None else float("nan")
+
+
+def _serie_jour_complete(df: pd.DataFrame, cle_valeur: str, jour: pd.Timestamp) -> pd.Series | None:
+    """Serie 15 min (96 points) du jour demande, indexee par timestamp --
+    None si le jour n'est pas complet dans `df` (ex. raw:da pas encore
+    rafraichi aujourd'hui)."""
+    masque = (df["timestamp"] >= jour) & (df["timestamp"] < jour + pd.Timedelta(days=1))
+    sous_ensemble = df.loc[masque].sort_values("timestamp")
+    if len(sous_ensemble) < 96:
+        return None
+    return sous_ensemble.set_index("timestamp")[cle_valeur]
+
+
+def maj_historique_coge(nom_domaine: str, jour_iso: str, valeurs: dict) -> None:
+    """Ecrit le jour dans hist_coge:<serre|indus> ({"base":..,"peak":..,
+    "superpeak":..}), retention 35j (PRUNE_JOURS) comme les autres hist --
+    permet une vraie comparaison vs 7j (calc.moyenne_nj_glissante), au lieu
+    d'une reference inventee cote frontend, cf. echange utilisateur."""
+    hist = kv.get_json(f"hist_coge:{nom_domaine}", {})
+    hist[jour_iso] = valeurs
+    kv.set_json(f"hist_coge:{nom_domaine}", _prune_hist(hist))
+
+
+def _maj_kpis_coge(ligne: dict, prefixe: str, serie_jour_elec: pd.Series | None, prix_gaz_pcs: float | None, jour: pd.Timestamp, facteur: float) -> None:
+    if serie_jour_elec is None or prix_gaz_pcs is None:
+        return
+    jour_iso = jour.date().isoformat()
+    clean = serie_jour_elec.apply(lambda p: _clean_spark_spread_coge(p, prix_gaz_pcs, CO2_PRIX_MOCK_COGE, facteur))
+    valeurs_jour = {
+        "base": float(clean.mean()),
+        "peak": float(clean.between_time("08:00", "20:00", inclusive="left").mean()),
+        "superpeak": _super_peak_coge(clean),
+    }
+    maj_historique_coge(prefixe, jour_iso, valeurs_jour)
+
+    hist = kv.get_json(f"hist_coge:{prefixe}", {})
+    for cle, valeur in valeurs_jour.items():
+        historique_cle = pd.Series({pd.Timestamp(d): v[cle] for d, v in hist.items() if cle in v})
+        reference = calc.moyenne_nj_glissante(historique_cle, jour, 7)
+        ligne[f"coge_{prefixe}_{cle}"] = valeur
+        ligne[f"coge_{prefixe}_{cle}_ecart_pct"] = calc.ecart_pct(valeur, reference)
 
 
 PRUNE_JOURS_SIGNAL_PP = 400  # couvre une saison PP complete (nov-mars) + marge
@@ -294,6 +368,14 @@ def calcule_et_sauvegarde_snapshot() -> dict:
         ref_peg_7j = calc.moyenne_nj_glissante(hist_peg_series, jour, 7)
         ligne["peg_prix"] = prix_peg
         ligne["peg_ecart_pct"] = calc.ecart_pct(prix_peg, ref_peg_7j)
+
+        # Cogé serre/industriel (clean spark spread) : calcule et stocke
+        # SEULEMENT si le prix gaz du jour est reel (jamais de valeur
+        # mock stockee dans l'historique -- garde hist_coge propre) ET si
+        # raw:da a bien les 96 points du jour (jour-ahead deja publie).
+        serie_jour_da = _serie_jour_complete(df_da, "prix", jour) if not df_da.empty else None
+        _maj_kpis_coge(ligne, "serre", serie_jour_da, prix_peg, jour, FACTEUR_SERRE_COGE)
+        _maj_kpis_coge(ligne, "indus", serie_jour_da, prix_peg, jour, FACTEUR_INDUS_COGE)
 
     # Forward PEG (NOOS) : {"m1": prix, "m2": prix, "q1": prix}, EUR/MWh PCS
     # -- ecrit par cron_daily (cf. store.maj_forward), pas d'historique propre.

@@ -811,24 +811,43 @@
 
     // --- Valeurs instantanées cogé serre / indus (clean spark spread, cf.
     // note affichée : la valeur "réelle" pour une décision de production doit
-    // intégrer le coût carbone, pas seulement le spread brut). ---
+    // intégrer le coût carbone, pas seulement le spread brut). Le SERVEUR
+    // calcule et stocke ces mêmes valeurs chaque jour (store._maj_kpis_coge,
+    // avec le vrai spot élec + le vrai Peg du jour) pour une comparaison
+    // "vs 7j" RÉELLE (hist_coge:<serre|indus>) -- on les utilise dès
+    // qu'elles sont dispo (reel.cogeSerre/reel.cogeIndus), repli sur un
+    // calcul + une référence mock côté client sinon (POC, avant le premier
+    // passage du cron ou si raw:da n'a pas encore les 96 points du jour).
+    // cf. échange utilisateur ("vérifie que c'est des vraies valeurs"). ---
     const cleanSerre = spot.map(p => cleanSparkSpread(p, pegPrix, MOCK_COGE.co2.prix, FACTEUR_SERRE));
     const cleanIndus = spot.map(p => cleanSparkSpread(p, pegPrix, MOCK_COGE.co2.prix, FACTEUR_INDUS));
-    const serreBase = moyenne(cleanSerre), serrePeak = moyenneFenetre(cleanSerre,8,20), serreSuperPeak = superPeak(cleanSerre);
-    const indusBase = moyenne(cleanIndus), indusPeak = moyenneFenetre(cleanIndus,8,20), indusSuperPeak = superPeak(cleanIndus);
     const ref7j = MOCK_COGE.cogeRef7j;
+
+    const serreBase = reel.cogeSerre ? reel.cogeSerre.base : moyenne(cleanSerre);
+    const serreBasePct = reel.cogeSerre ? reel.cogeSerre.basePct : ecartPct(serreBase, ref7j.serreBase);
+    const serrePeak = reel.cogeSerre ? reel.cogeSerre.peak : moyenneFenetre(cleanSerre,8,20);
+    const serrePeakPct = reel.cogeSerre ? reel.cogeSerre.peakPct : ecartPct(serrePeak, ref7j.serrePeak);
+    const serreSuperPeak = reel.cogeSerre ? reel.cogeSerre.superpeak : superPeak(cleanSerre);
+    const serreSuperPeakPct = reel.cogeSerre ? reel.cogeSerre.superpeakPct : ecartPct(serreSuperPeak, ref7j.serreSuperPeak);
+    const indusBase = reel.cogeIndus ? reel.cogeIndus.base : moyenne(cleanIndus);
+    const indusBasePct = reel.cogeIndus ? reel.cogeIndus.basePct : ecartPct(indusBase, ref7j.indusBase);
+    const indusPeak = reel.cogeIndus ? reel.cogeIndus.peak : moyenneFenetre(cleanIndus,8,20);
+    const indusPeakPct = reel.cogeIndus ? reel.cogeIndus.peakPct : ecartPct(indusPeak, ref7j.indusPeak);
+    const indusSuperPeak = reel.cogeIndus ? reel.cogeIndus.superpeak : superPeak(cleanIndus);
+    const indusSuperPeakPct = reel.cogeIndus ? reel.cogeIndus.superpeakPct : ecartPct(indusSuperPeak, ref7j.indusSuperPeak);
+
     setText("serre-base", `${fmt(serreBase,1)} €/MWh`);
-    setHtml("serre-base-pill", pillHtml(ecartPct(serreBase, ref7j.serreBase), "vs 7j"));
+    setHtml("serre-base-pill", pillHtml(serreBasePct, "vs 7j"));
     setText("serre-peak", `${fmt(serrePeak,1)} €/MWh`);
-    setHtml("serre-peak-pill", pillHtml(ecartPct(serrePeak, ref7j.serrePeak), "vs 7j"));
+    setHtml("serre-peak-pill", pillHtml(serrePeakPct, "vs 7j"));
     setText("serre-superpeak", `${fmt(serreSuperPeak,1)} €/MWh`);
-    setHtml("serre-superpeak-pill", pillHtml(ecartPct(serreSuperPeak, ref7j.serreSuperPeak), "vs 7j"));
+    setHtml("serre-superpeak-pill", pillHtml(serreSuperPeakPct, "vs 7j"));
     setText("indus-base", `${fmt(indusBase,1)} €/MWh`);
-    setHtml("indus-base-pill", pillHtml(ecartPct(indusBase, ref7j.indusBase), "vs 7j"));
+    setHtml("indus-base-pill", pillHtml(indusBasePct, "vs 7j"));
     setText("indus-peak", `${fmt(indusPeak,1)} €/MWh`);
-    setHtml("indus-peak-pill", pillHtml(ecartPct(indusPeak, ref7j.indusPeak), "vs 7j"));
+    setHtml("indus-peak-pill", pillHtml(indusPeakPct, "vs 7j"));
     setText("indus-superpeak", `${fmt(indusSuperPeak,1)} €/MWh`);
-    setHtml("indus-superpeak-pill", pillHtml(ecartPct(indusSuperPeak, ref7j.indusSuperPeak), "vs 7j"));
+    setHtml("indus-superpeak-pill", pillHtml(indusSuperPeakPct, "vs 7j"));
 
     // --- Jours PP (API RTE Signal) si dispo, sinon mock -- toute la carte
     // passe en orange quand on est en PP, pas juste un badge secondaire --
@@ -891,6 +910,22 @@
         // absent = jour inconnu, traité comme "pas PP" par défaut.
         if(snap.pp_jours_ecoules !== undefined && snap.pp_jours_ecoules !== null){
           reel.pp = { joursEcoules: snap.pp_jours_ecoules, enPP: snap.pp_en_pp === true };
+        }
+        // Cogé serre/industriel : calculées et stockées côté serveur chaque
+        // jour (store._maj_kpis_coge), pour une vraie comparaison "vs 7j".
+        if(snap.coge_serre_base !== undefined){
+          reel.cogeSerre = {
+            base: snap.coge_serre_base, basePct: snap.coge_serre_base_ecart_pct,
+            peak: snap.coge_serre_peak, peakPct: snap.coge_serre_peak_ecart_pct,
+            superpeak: snap.coge_serre_superpeak, superpeakPct: snap.coge_serre_superpeak_ecart_pct,
+          };
+        }
+        if(snap.coge_indus_base !== undefined){
+          reel.cogeIndus = {
+            base: snap.coge_indus_base, basePct: snap.coge_indus_base_ecart_pct,
+            peak: snap.coge_indus_peak, peakPct: snap.coge_indus_peak_ecart_pct,
+            superpeak: snap.coge_indus_superpeak, superpeakPct: snap.coge_indus_superpeak_ecart_pct,
+          };
         }
         // mFRR : déjà alimenté par le pipeline RTE du dashboard BESS, pas
         // besoin d'une pipeline dédiée pour Cogé -- cf. échange utilisateur.

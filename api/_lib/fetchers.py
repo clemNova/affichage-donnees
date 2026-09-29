@@ -156,6 +156,26 @@ def fetch_peg_forward(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list[
     return [{"ts": p["timestamp"], "prix": float(p["value"])} for p in points]
 
 
+def fetch_peg_historique_jour(jour: pd.Timestamp) -> float | None:
+    """Prix PEG FIXE (spot) tel que publie a la date `jour`, pour livraison
+    ce meme jour -- necessite le parametre `published_at` (snapshot de la
+    courbe A CETTE DATE), contrairement a fetch_peg_forward/fetch_peg_spot
+    qui interrogent la courbe LIVE (= aujourd'hui). Constate empiriquement :
+    start_at/end_at seuls sur une fenetre passee, sans published_at, ne
+    renvoient AUCUN point -- la courbe live de NOOS ne conserve pas les
+    livraisons passees, published_at est indispensable pour l'historique
+    (cf. echange utilisateur / doc NOOS fournie pour la courbe elec PWRTE,
+    meme mecanisme pour PEG). Renvoie None si NOOS ne renvoie rien pour ce jour."""
+    params = {
+        "published_at": jour.isoformat(),
+        "start_at": jour.isoformat(),
+        "end_at": (jour + pd.Timedelta(days=1)).isoformat(),
+    }
+    donnees = noos_client.appelle_api_noos_peg(params)
+    points = donnees.get("time_series") or []
+    return float(points[0]["value"]) if points else None
+
+
 def fetch_elec_forward_base_peak(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> dict:
     """Base/Peak forward elec France (NOOS, courbe PWRTE) sur [date_debut,
     date_fin[. NOOS n'expose qu'une courbe brute 15 min (pas de produit
