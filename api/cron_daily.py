@@ -26,6 +26,26 @@ from _lib import fetchers, store
 from _lib.rte_client import charge_identifiants_rte
 
 
+def _fenetre_mois_plus(n: int) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """[1er jour du mois cible (aujourd'hui + n mois), 1er jour du mois
+    suivant[ -- meme regle que labelMoisPlus() cote frontend (coge.html)."""
+    debut = pd.Timestamp.now(tz="Europe/Paris").normalize().replace(day=1).tz_localize(None) + pd.DateOffset(months=n)
+    return debut, debut + pd.DateOffset(months=1)
+
+
+def _fenetre_trimestre_apres_m2() -> tuple[pd.Timestamp, pd.Timestamp]:
+    """1er trimestre calendaire COMPLET apres le mois de M+2 (pas le
+    trimestre courant + 1) -- meme regle que labelTrimestreApresM2() cote
+    frontend, pour rester coherent avec le libelle affiche."""
+    debut_m2, _ = _fenetre_mois_plus(2)
+    trimestre_m2 = (debut_m2.month - 1) // 3
+    trimestre, annee = trimestre_m2 + 1, debut_m2.year
+    if trimestre > 3:
+        trimestre, annee = 0, annee + 1
+    debut = pd.Timestamp(year=annee, month=trimestre * 3 + 1, day=1)
+    return debut, debut + pd.DateOffset(months=3)
+
+
 def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
     resultats: dict = {}
 
@@ -57,6 +77,42 @@ def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
         resultats["mfrr_capa"] = {"up": n_up, "down": n_down}
     except Exception:
         resultats["mfrr_capa"] = f"echec: {traceback.format_exc(limit=2)}"
+
+    try:
+        # PEG gaz (NOOS) : un seul point par jour, pas de fenetre -- ecrit
+        # directement dans hist:noos_peg (cf. store.maj_prix_journalier),
+        # pas de raw:noos_peg puisqu'il n'y a pas de courbe 15 min a faire
+        # vieillir comme pour da/fcr/afrr/mfrr.
+        spot_peg = fetchers.fetch_peg_spot()
+        if spot_peg:
+            jour_iso = spot_peg[0]["ts"][:10]
+            store.maj_prix_journalier("noos_peg", jour_iso, spot_peg[0]["prix"])
+            resultats["noos_peg"] = 1
+        else:
+            resultats["noos_peg"] = 0
+    except Exception:
+        resultats["noos_peg"] = f"echec: {traceback.format_exc(limit=2)}"
+
+    try:
+        # Forward PEG (NOOS) : moyenne des points renvoyes sur chaque fenetre
+        # M+1/M+2/1er trimestre apres M+2 -- pas d'historique, chaque
+        # execution ecrase forward:noos_peg avec les valeurs courantes (les
+        # fenetres glissent avec le calendrier, cf. store.maj_forward_gaz).
+        valeurs_forward: dict = {}
+        for periode, (debut_p, fin_p) in {
+            "m1": _fenetre_mois_plus(1),
+            "m2": _fenetre_mois_plus(2),
+            "q1": _fenetre_trimestre_apres_m2(),
+        }.items():
+            points = fetchers.fetch_peg_forward(debut_p, fin_p)
+            prix = [p["prix"] for p in points if p.get("prix") is not None]
+            if prix:
+                valeurs_forward[periode] = sum(prix) / len(prix)
+        if valeurs_forward:
+            store.maj_forward_gaz("noos_peg", valeurs_forward)
+        resultats["noos_peg_forward"] = valeurs_forward or "aucune donnee"
+    except Exception:
+        resultats["noos_peg_forward"] = f"echec: {traceback.format_exc(limit=2)}"
 
     return resultats
 

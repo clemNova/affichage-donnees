@@ -84,6 +84,25 @@ def maj_serie_connue_avance(nom_domaine: str, points_bruts: list[dict], avec_ind
     return len(points_bruts)
 
 
+def maj_prix_journalier(nom_domaine: str, jour_iso: str, prix: float) -> None:
+    """Ecrit/remplace directement le prix du jour dans hist:<domaine>, meme
+    forme {"moyenne": prix} que les series 15 min -- pour un domaine qui n'a
+    qu'UN point par jour (pas de raw:<domaine> a faire vieillir), cas du PEG
+    gaz NOOS (publie une fois par jour). Compatible avec calc.moyenne_nj_glissante
+    utilise dans calcule_et_sauvegarde_snapshot pour la comparaison vs 7j."""
+    hist = kv.get_json(f"hist:{nom_domaine}", {})
+    hist[jour_iso] = {"moyenne": float(prix)}
+    kv.set_json(f"hist:{nom_domaine}", _prune_hist(hist))
+
+
+def maj_forward_gaz(nom_domaine: str, valeurs: dict) -> None:
+    """Ecrase forward:<domaine> avec les dernieres valeurs forward connues
+    (pas d'historique -- les fenetres "M+1/M+2/1er trimestre complet apres
+    M+2" sont relatives a AUJOURD'HUI, donc glissent avec le calendrier a
+    chaque execution du cron, cf. cron_daily._fenetre_mois_plus)."""
+    kv.set_json(f"forward:{nom_domaine}", valeurs)
+
+
 def maj_activation(nouveaux_points: list[dict]) -> int:
     """Fusionne les nouveaux points d'activation aFRR avec le cache existant
     (dedoublonne par timestamp, garde les ~2 derniers jours) -- contrairement
@@ -230,6 +249,25 @@ def calcule_et_sauvegarde_snapshot() -> dict:
         _kpis_courbe_connue(ligne, f"afrr_{prefixe}_capa", nom_domaine, jour, instant, mode="mois_an_dernier")
     for prefixe, nom_domaine in DIRECTIONS_CAPACITE_MFRR.items():
         _kpis_courbe_connue(ligne, f"mfrr_{prefixe}_capa", nom_domaine, jour, instant, mode="mois_an_dernier")
+
+    # PEG gaz (NOOS) : une seule valeur par jour (pas de courbe 15 min, donc
+    # pas de "prix courant" ni de raw:<domaine> -- cf. maj_prix_journalier,
+    # appelee par cron_daily). Comparaison vs moyenne glissante 7j, pour la
+    # pill "vs 7j" du dashboard Cogenerations.
+    hist_peg = kv.get_json("hist:noos_peg", {})
+    jour_iso = jour.date().isoformat()
+    if jour_iso in hist_peg:
+        prix_peg = hist_peg[jour_iso]["moyenne"]
+        hist_peg_series = pd.Series({pd.Timestamp(d): v["moyenne"] for d, v in hist_peg.items()})
+        ref_peg_7j = calc.moyenne_nj_glissante(hist_peg_series, jour, 7)
+        ligne["peg_prix"] = prix_peg
+        ligne["peg_ecart_pct"] = calc.ecart_pct(prix_peg, ref_peg_7j)
+
+    # Forward PEG (NOOS) : {"m1": prix, "m2": prix, "q1": prix}, EUR/MWh PCS
+    # -- ecrit par cron_daily (cf. maj_forward_gaz), pas d'historique propre.
+    forward_peg = kv.get_json("forward:noos_peg", {})
+    if forward_peg:
+        ligne["peg_forward"] = forward_peg
 
     points_activation = kv.get_json("raw:afrr_activation", [])
     if points_activation:

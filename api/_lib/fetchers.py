@@ -1,4 +1,4 @@
-"""Fetchers RTE/ENTSO-E adaptes au contexte serverless : fenetres COURTES
+"""Fetchers RTE/ENTSO-E/NOOS adaptes au contexte serverless : fenetres COURTES
 (quelques jours, pas de chunking multi-semaines -- inutile ici), pas de cache
 disque (le KV s'en charge cote appelant, cf. cron_daily.py/cron_15min.py).
 Logique de parsing reprise du pipeline local deja teste (module_aFRR/,
@@ -11,6 +11,7 @@ from __future__ import annotations
 import pandas as pd
 from entsoe.exceptions import NoMatchingDataError
 
+from . import noos_client
 from .entsoe_client import PAYS_FRANCE, cree_client_entsoe
 from .rte_client import IdentifiantsRTE, appelle_api_rte
 
@@ -130,3 +131,26 @@ def fetch_afrr_activation(date_debut: pd.Timestamp, date_fin: pd.Timestamp, iden
             "down": None if pd.isna(row.down) else float(row.down),
         })
     return resultat
+
+
+def fetch_peg_spot() -> list[dict]:
+    """Prix spot PEG du jour (gaz naturel, EUR/MWh PCS) -- NOOS Energy publie
+    UN point par jour (pas de courbe 15 min comme RTE/ENTSO-E), on prend le
+    premier point de la reponse. Renvoie [] si NOOS ne renvoie aucun point."""
+    donnees = noos_client.appelle_api_noos_peg()
+    points = donnees.get("time_series") or []
+    if not points:
+        return []
+    premier = points[0]
+    return [{"ts": premier["timestamp"], "prix": float(premier["value"])}]
+
+
+def fetch_peg_forward(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list[dict]:
+    """Courbe forward PEG (gaz naturel, EUR/MWh PCS) restreinte a
+    [date_debut, date_fin[ -- meme endpoint NOOS que le spot, filtre via
+    start_at/end_at (cf. echange utilisateur). Peut renvoyer plusieurs points
+    selon la granularite NOOS -- a l'appelant de moyenner sur la fenetre."""
+    params = {"start_at": date_debut.isoformat(), "end_at": date_fin.isoformat()}
+    donnees = noos_client.appelle_api_noos_peg(params)
+    points = donnees.get("time_series") or []
+    return [{"ts": p["timestamp"], "prix": float(p["value"])} for p in points]

@@ -67,6 +67,11 @@
   }
   .btn-fullscreen:hover{color:var(--text);border-color:var(--line)}
 
+  .dash-nav{display:flex;gap:6px}
+  .dash-nav-link{font-family:var(--font-titres);font-size:.72rem;font-weight:600;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--line-muted);border-radius:999px;padding:4px 12px;text-decoration:none;transition:color .1s,border-color .1s}
+  .dash-nav-link:hover{color:var(--text);border-color:var(--line)}
+  .dash-nav-link.active{color:var(--text);background:var(--panel-muted);border-color:var(--line);font-weight:700}
+
   .error-banner{
     display:none;gap:10px;align-items:flex-start;
     position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:50;max-width:720px;
@@ -201,6 +206,11 @@
       <h1>Dashboard BESS<span class="subhead">Day-ahead, FCR, aFRR &amp; mFRR — France</span></h1>
     </div>
     <div class="header-right">
+      <nav class="dash-nav">
+        <a class="dash-nav-link active" href="index.html">BESS</a>
+        <a class="dash-nav-link" href="coge.html">Cogé</a>
+      </nav>
+      <button class="btn-fullscreen" id="btn-carousel" title="Carrousel" aria-label="Activer/mettre en pause le carrousel">—</button>
       <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
     </div>
   </header>
@@ -739,6 +749,41 @@
   chargerEtRendre();
   setInterval(chargerEtRendre, REFRESH_MS);
   setInterval(retracerLocalement, LOCAL_TICK_MS);
+
+  // Carrousel TV : bascule automatiquement sur l'autre dashboard après un
+  // délai (2 min) -- cf. échange
+  // utilisateur. Contrôlé par un bouton (état mémorisé en local, par
+  // navigateur/écran, cf. carouselActif) ; "?carousel=off"/"=on" dans l'URL
+  // force l'état (prioritaire sur le bouton, pratique pour tester).
+  const CAROUSEL_MS = 2 * 60 * 1000;
+  function carouselActif(){
+    const qp = new URLSearchParams(location.search).get("carousel");
+    if(qp === "off") return false;
+    if(qp === "on") return true;
+    try{ return localStorage.getItem("carousel-actif") !== "off"; }catch(erreur){ return true; }
+  }
+  function definitCarouselActif(actif){
+    try{ localStorage.setItem("carousel-actif", actif ? "on" : "off"); }catch(erreur){}
+  }
+  const btnCarousel = document.getElementById("btn-carousel");
+  function metAJourBoutonCarousel(){
+    const actif = carouselActif();
+    btnCarousel.textContent = actif ? "⏸" : "▶";
+    btnCarousel.title = actif ? "Mettre le carrousel en pause" : "Activer le carrousel (bascule auto toutes les 10s)";
+  }
+  let idCarousel = null;
+  function programmeCarousel(){
+    if(idCarousel) clearTimeout(idCarousel);
+    if(!carouselActif()) return;
+    idCarousel = setTimeout(() => { window.location.href = "coge.html" + location.search; }, CAROUSEL_MS);
+  }
+  btnCarousel.addEventListener("click", () => {
+    definitCarouselActif(!carouselActif());
+    metAJourBoutonCarousel();
+    programmeCarousel();
+  });
+  metAJourBoutonCarousel();
+  programmeCarousel();
 })();
 </script>
 </body>
