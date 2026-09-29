@@ -80,11 +80,14 @@ def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
 
     try:
         # Jours PP (API RTE Signal v2, cf. guide RTE_GU_API_Signal fourni par
-        # l'utilisateur) -- meme fenetre que da/fcr/afrr/mfrr (hier ->
-        # surlendemain), couvre largement les preconisations RTE (signal du
-        # lendemain/surlendemain). Non opposable avant le 01/11/2026, cf.
-        # fetchers.fetch_signal_pp -- peut renvoyer {} en attendant.
-        identifiants_signal = charge_identifiants_rte("SIGNAL")
+        # l'utilisateur) -- souscrite sur la meme application RTE que
+        # BALANCING_ENERGY (cf. cron_15min.py), donc memes identifiants,
+        # pas de nouvelle variable d'environnement a creer. Meme fenetre que
+        # da/fcr/afrr/mfrr (hier -> surlendemain), couvre largement les
+        # preconisations RTE (signal du lendemain/surlendemain). Non
+        # opposable avant le 01/11/2026, cf. fetchers.fetch_signal_pp --
+        # peut renvoyer {} en attendant.
+        identifiants_signal = charge_identifiants_rte("BALANCING_ENERGY")
         signaux = fetchers.fetch_signal_pp(debut, fin, identifiants_signal)
         if signaux:
             store.maj_signal_pp(signaux)
