@@ -136,6 +136,8 @@
   /* Valeur puis variation en dessous (pas à côté) -- cf. échange utilisateur. */
   .cogeref-value-col{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
   .cogeref-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums}
+  /* Unité plus petite que la valeur -- cf. échange utilisateur. */
+  .cogeref-value .unite-petite{font-size:.55em;font-weight:500;color:var(--text-dim)}
 
   /* Contour de couleur reliant chaque carte à sa courbe sur les graphes
      spark spread (k 1,8 = vert, k 2,2 = bleu clair) -- cf. échange utilisateur. */
@@ -201,6 +203,11 @@
   /* Valeur + pill "vs 7j" empilés dans chaque cellule -- cf. échange utilisateur. */
   .fwd-cell{display:flex;flex-direction:column;align-items:center;gap:2px}
   .fwd-cell-value{font-family:var(--font-corps);font-weight:700;font-variant-numeric:tabular-nums}
+  /* Pill beaucoup plus compacte dans le forward (12 valeurs affichées, pas
+     besoin de répéter "vs 7j" -- déjà porté par le contexte de la carte) --
+     cf. échange utilisateur. */
+  .fwd-cell .pill{font-size:.56rem;padding:1px 5px;gap:2px}
+  .fwd-cell .pill-cap{display:none}
   .fwd-table thead tr:first-child th{color:var(--text);font-family:var(--font-titres);font-size:.95rem;font-weight:700;padding:10px 14px 8px;text-align:center}
   .fwd-table thead tr:last-child th{color:var(--text-faint);font-family:var(--font-titres);font-size:.68rem;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
   .fwd-table tbody th{text-align:left;color:var(--text-dim);font-family:var(--font-titres);font-weight:500;font-size:.9rem}
@@ -250,7 +257,6 @@
         <a class="dash-nav-link" href="index.html">BESS</a>
         <a class="dash-nav-link active" href="coge.html">Cogé</a>
       </nav>
-      <button class="btn-fullscreen" id="btn-carousel" title="Carrousel" aria-label="Activer/mettre en pause le carrousel">—</button>
       <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
     </div>
   </header>
@@ -613,6 +619,11 @@
     if(v === null || v === undefined || Number.isNaN(v)) return "—";
     return v.toLocaleString("fr-FR", {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
   }
+  // Valeur en taille normale, unité en plus petit -- cf. échange utilisateur.
+  function valeurUniteHtml(v, decimals, unite){
+    if(v === null || v === undefined || Number.isNaN(v)) return "—";
+    return `${fmt(v,decimals)}<span class="unite-petite"> ${unite}</span>`;
+  }
   function pillHtml(ecartPct, caption){
     if(ecartPct === null || ecartPct === undefined || Number.isNaN(ecartPct)) return "";
     const up = ecartPct >= 0;
@@ -836,17 +847,17 @@
     const indusSuperPeak = reel.cogeIndus ? reel.cogeIndus.superpeak : superPeak(cleanIndus);
     const indusSuperPeakPct = reel.cogeIndus ? reel.cogeIndus.superpeakPct : ecartPct(indusSuperPeak, ref7j.indusSuperPeak);
 
-    setText("serre-base", `${fmt(serreBase,1)} €/MWh`);
+    setHtml("serre-base", valeurUniteHtml(serreBase,1,"€/MWh"));
     setHtml("serre-base-pill", pillHtml(serreBasePct, "vs 7j"));
-    setText("serre-peak", `${fmt(serrePeak,1)} €/MWh`);
+    setHtml("serre-peak", valeurUniteHtml(serrePeak,1,"€/MWh"));
     setHtml("serre-peak-pill", pillHtml(serrePeakPct, "vs 7j"));
-    setText("serre-superpeak", `${fmt(serreSuperPeak,1)} €/MWh`);
+    setHtml("serre-superpeak", valeurUniteHtml(serreSuperPeak,1,"€/MWh"));
     setHtml("serre-superpeak-pill", pillHtml(serreSuperPeakPct, "vs 7j"));
-    setText("indus-base", `${fmt(indusBase,1)} €/MWh`);
+    setHtml("indus-base", valeurUniteHtml(indusBase,1,"€/MWh"));
     setHtml("indus-base-pill", pillHtml(indusBasePct, "vs 7j"));
-    setText("indus-peak", `${fmt(indusPeak,1)} €/MWh`);
+    setHtml("indus-peak", valeurUniteHtml(indusPeak,1,"€/MWh"));
     setHtml("indus-peak-pill", pillHtml(indusPeakPct, "vs 7j"));
-    setText("indus-superpeak", `${fmt(indusSuperPeak,1)} €/MWh`);
+    setHtml("indus-superpeak", valeurUniteHtml(indusSuperPeak,1,"€/MWh"));
     setHtml("indus-superpeak-pill", pillHtml(indusSuperPeakPct, "vs 7j"));
 
     // --- Jours PP (API RTE Signal) si dispo, sinon mock -- toute la carte
@@ -965,41 +976,11 @@
   chargerEtRendre();
   setInterval(chargerEtRendre, REFRESH_MS);
   setInterval(retracerLocalement, LOCAL_TICK_MS);
-
-  // Carrousel TV : bascule automatiquement sur l'autre dashboard après un
-  // délai (2 min) -- cf. échange
-  // utilisateur. Contrôlé par un bouton (état mémorisé en local, par
-  // navigateur/écran, cf. carouselActif) ; "?carousel=off"/"=on" dans l'URL
-  // force l'état (prioritaire sur le bouton, pratique pour tester).
-  const CAROUSEL_MS = 2 * 60 * 1000;
-  function carouselActif(){
-    const qp = new URLSearchParams(location.search).get("carousel");
-    if(qp === "off") return false;
-    if(qp === "on") return true;
-    try{ return localStorage.getItem("carousel-actif") !== "off"; }catch(erreur){ return true; }
-  }
-  function definitCarouselActif(actif){
-    try{ localStorage.setItem("carousel-actif", actif ? "on" : "off"); }catch(erreur){}
-  }
-  const btnCarousel = document.getElementById("btn-carousel");
-  function metAJourBoutonCarousel(){
-    const actif = carouselActif();
-    btnCarousel.textContent = actif ? "⏸" : "▶";
-    btnCarousel.title = actif ? "Mettre le carrousel en pause" : "Activer le carrousel (bascule auto toutes les 10s)";
-  }
-  let idCarousel = null;
-  function programmeCarousel(){
-    if(idCarousel) clearTimeout(idCarousel);
-    if(!carouselActif()) return;
-    idCarousel = setTimeout(() => { window.location.href = "index.html" + location.search; }, CAROUSEL_MS);
-  }
-  btnCarousel.addEventListener("click", () => {
-    definitCarouselActif(!carouselActif());
-    metAJourBoutonCarousel();
-    programmeCarousel();
-  });
-  metAJourBoutonCarousel();
-  programmeCarousel();
+  // Le carrousel (bascule auto BESS/Cogé) vit maintenant dans tv.html (un
+  // wrapper en iframe) -- une vraie navigation de page comme avant sortait
+  // systématiquement du mode plein écran (limitation navigateur : l'état
+  // fullscreen est attaché au document, pas conservé après un changement de
+  // page), cf. échange utilisateur.
 })();
 </script>
 </body>

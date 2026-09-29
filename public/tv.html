@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NovaWatt — Dashboards TV</title>
+<style>
+  /* Wrapper en iframe : bascule automatiquement l'iframe entre les 2
+     dashboards SANS jamais naviguer CETTE page -- une vraie navigation
+     (comme avant, quand chaque dashboard se redirigeait lui-même vers
+     l'autre) sort systématiquement du mode plein écran du navigateur,
+     l'état fullscreen étant attaché au document et non conservé après un
+     changement de page. En gardant ce document fixe et en ne changeant que
+     le `src` de l'iframe, le plein écran demandé ICI reste actif -- cf.
+     échange utilisateur. C'est CETTE page qu'il faut ouvrir en plein écran
+     sur l'écran TV, pas index.html/coge.html directement. */
+  html,body{margin:0;padding:0;height:100%;background:#1E3872;overflow:hidden}
+  iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
+  .tv-controls{position:fixed;top:10px;right:10px;z-index:10;display:flex;gap:8px}
+  .tv-btn{
+    width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+    background:rgba(25,54,104,.85);border:1px solid #3f5fa0;border-radius:6px;color:#c7d4ee;
+    font-size:13px;line-height:1;cursor:pointer;padding:0;font-family:system-ui,sans-serif;
+  }
+  .tv-btn:hover{color:#fff;border-color:#5578c9}
+</style>
+</head>
+<body>
+  <iframe id="frame" src="index.html" title="Dashboard"></iframe>
+  <div class="tv-controls">
+    <button class="tv-btn" id="btn-carousel" title="Carrousel" aria-label="Activer/mettre en pause le carrousel">—</button>
+    <button class="tv-btn" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  const PAGES = ["index.html", "coge.html"];
+  const CAROUSEL_MS = 2 * 60 * 1000;
+  let indexPage = 0;
+  const frame = document.getElementById("frame");
+
+  // "?carousel=off"/"=on" force l'état (prioritaire sur le bouton, pratique
+  // pour tester) ; sinon état mémorisé en local, par navigateur/écran.
+  function carouselActif(){
+    const qp = new URLSearchParams(location.search).get("carousel");
+    if(qp === "off") return false;
+    if(qp === "on") return true;
+    try{ return localStorage.getItem("carousel-actif") !== "off"; }catch(erreur){ return true; }
+  }
+  function definitCarouselActif(actif){
+    try{ localStorage.setItem("carousel-actif", actif ? "on" : "off"); }catch(erreur){}
+  }
+
+  const btnCarousel = document.getElementById("btn-carousel");
+  function metAJourBoutonCarousel(){
+    const actif = carouselActif();
+    btnCarousel.textContent = actif ? "⏸" : "▶";
+    btnCarousel.title = actif ? "Mettre le carrousel en pause" : "Activer le carrousel (bascule auto toutes les 2 min)";
+  }
+
+  let idCarousel = null;
+  function suivant(){
+    indexPage = (indexPage + 1) % PAGES.length;
+    frame.src = PAGES[indexPage] + location.search;
+    programmeCarousel();
+  }
+  function programmeCarousel(){
+    if(idCarousel) clearTimeout(idCarousel);
+    if(!carouselActif()) return;
+    idCarousel = setTimeout(suivant, CAROUSEL_MS);
+  }
+  btnCarousel.addEventListener("click", () => {
+    definitCarouselActif(!carouselActif());
+    metAJourBoutonCarousel();
+    programmeCarousel();
+  });
+  metAJourBoutonCarousel();
+  programmeCarousel();
+
+  const btnFullscreen = document.getElementById("btn-fullscreen");
+  btnFullscreen.addEventListener("click", () => {
+    if(document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{});
+  });
+  document.addEventListener("fullscreenchange", () => {
+    btnFullscreen.textContent = document.fullscreenElement ? "⤫" : "⛶";
+  });
+})();
+</script>
+</body>
+</html>
