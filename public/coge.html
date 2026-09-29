@@ -75,8 +75,6 @@
   .dash-nav-link:hover{color:var(--text);border-color:var(--line)}
   .dash-nav-link.active{color:var(--text);background:var(--panel-muted);border-color:var(--line);font-weight:700}
 
-  .poc-badge{font-family:var(--font-titres);font-size:.65rem;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--line-muted);border-radius:999px;padding:2px 10px;letter-spacing:.03em}
-
   main.dashboard{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px}
 
   .section-title{font-family:var(--font-titres);font-size:1.05rem;font-weight:500;letter-spacing:.01em;color:var(--text-dim)}
@@ -178,11 +176,12 @@
   /* Titre à gauche, statut ("Aujourd'hui : jour PP") à droite sur la même
      ligne, plutôt qu'en dessous -- cf. échange utilisateur. */
   .pp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}
+  .pp-head .section-title{font-size:.82rem}
   .pp-counter{display:flex;align-items:baseline;justify-content:center;gap:8px}
-  .pp-counter-value{font-family:var(--font-corps);font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums;line-height:1}
-  .pp-counter-total{font-size:.85rem;color:var(--text-faint);font-weight:500}
-  .pp-counter-label{font-size:.7rem;color:var(--text-faint)}
-  .pp-status{font-family:var(--font-titres);font-size:.72rem;font-weight:700;color:var(--text-faint);white-space:nowrap}
+  .pp-counter-value{font-family:var(--font-corps);font-weight:700;font-size:1.25rem;font-variant-numeric:tabular-nums;line-height:1}
+  .pp-counter-total{font-size:.72rem;color:var(--text-faint);font-weight:500}
+  .pp-counter-label{font-size:.62rem;color:var(--text-faint)}
+  .pp-status{font-family:var(--font-titres);font-size:.64rem;font-weight:700;color:var(--text-faint);white-space:nowrap}
   .pp-card.actif{background:var(--novawatt-orange);border-color:var(--novawatt-orange)}
   .pp-card.actif .section-title,.pp-card.actif .section-title em,.pp-card.actif .pp-counter-value,
   .pp-card.actif .pp-counter-total,.pp-card.actif .pp-counter-label,.pp-card.actif .pp-status{color:#1E3872}
@@ -252,7 +251,6 @@
       <h1>Dashboard Cogénération<span class="subhead">Spark spread, clean spark spread, marché gaz/CO2 — France</span></h1>
     </div>
     <div class="header-right">
-      <span class="poc-badge">POC — données partiellement simulées</span>
       <nav class="dash-nav">
         <a class="dash-nav-link" href="index.html">BESS</a>
         <a class="dash-nav-link active" href="coge.html">Cogé</a>
