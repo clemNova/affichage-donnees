@@ -751,13 +751,15 @@
     };
   }
 
-  // gazReel = {m1, m2, q1} depuis /api/kpis (NOOS) si le pipeline forward a
-  // déjà tourné -- remplace le gaz mock période par période, élec/CO2
-  // forward restent mock tant qu'il n'y a pas de pipeline dédiée.
-  function construitForwards(gazReel){
+  // gazReel = {m1, m2, q1} (€/MWh PCS) et elecReel = {m1:{base,peak}, ...}
+  // (€/MWh) depuis /api/kpis (NOOS) si les pipelines forward ont tourné --
+  // remplacent gaz/élec mock période par période, CO2 forward reste mock
+  // (pas de pipeline dédiée).
+  function construitForwards(gazReel, elecReel){
     const inputs = MOCK_COGE.forwardInputsMock;
     const gaz = Object.assign({}, inputs.gaz, gazReel || {});
-    const inputsCourants = Object.assign({}, inputs, { gaz });
+    const elec = Object.assign({}, inputs.elec, elecReel || {});
+    const inputsCourants = Object.assign({}, inputs, { gaz, elec });
     const ref = MOCK_COGE.forwardInputsRef7j;
 
     document.getElementById("fwd-body").innerHTML =
@@ -849,8 +851,8 @@
     setText("co2-valeur", `${fmt(MOCK_COGE.co2.prix,1)} €/tCO2`);
     setHtml("co2-pill", pillHtml(ecartPct(MOCK_COGE.co2.prix, moyenne(MOCK_COGE.co2.serie7j)), "vs 7j"));
 
-    // --- Forwards (gaz réel NOOS si dispo, reste mock sinon) ---
-    construitForwards(reel.forwardGaz);
+    // --- Forwards (gaz + élec réels NOOS si dispo, CO2 reste mock) ---
+    construitForwards(reel.forwardGaz, reel.forwardElec);
   }
 
   // Prix de capacité RTE natif en €/MW/15min -- x96 (nb de quarts d'heure/
@@ -874,6 +876,9 @@
         }
         if(snap.peg_forward){
           reel.forwardGaz = snap.peg_forward; // {m1, m2, q1}, €/MWh PCS
+        }
+        if(snap.elec_forward){
+          reel.forwardElec = snap.elec_forward; // {m1:{base,peak}, m2:{...}, q1:{...}}, €/MWh
         }
         // mFRR : déjà alimenté par le pipeline RTE du dashboard BESS, pas
         // besoin d'une pipeline dédiée pour Cogé -- cf. échange utilisateur.

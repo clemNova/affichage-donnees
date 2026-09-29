@@ -95,9 +95,11 @@ def maj_prix_journalier(nom_domaine: str, jour_iso: str, prix: float) -> None:
     kv.set_json(f"hist:{nom_domaine}", _prune_hist(hist))
 
 
-def maj_forward_gaz(nom_domaine: str, valeurs: dict) -> None:
+def maj_forward(nom_domaine: str, valeurs: dict) -> None:
     """Ecrase forward:<domaine> avec les dernieres valeurs forward connues
-    (pas d'historique -- les fenetres "M+1/M+2/1er trimestre complet apres
+    (gaz -> {"m1": prix, ...} ; elec -> {"m1": {"base":..,"peak":..}, ...} --
+    peu importe la forme, juste stockee/renvoyee telle quelle). Pas
+    d'historique -- les fenetres "M+1/M+2/1er trimestre complet apres
     M+2" sont relatives a AUJOURD'HUI, donc glissent avec le calendrier a
     chaque execution du cron, cf. cron_daily._fenetre_mois_plus)."""
     kv.set_json(f"forward:{nom_domaine}", valeurs)
@@ -264,10 +266,16 @@ def calcule_et_sauvegarde_snapshot() -> dict:
         ligne["peg_ecart_pct"] = calc.ecart_pct(prix_peg, ref_peg_7j)
 
     # Forward PEG (NOOS) : {"m1": prix, "m2": prix, "q1": prix}, EUR/MWh PCS
-    # -- ecrit par cron_daily (cf. maj_forward_gaz), pas d'historique propre.
+    # -- ecrit par cron_daily (cf. store.maj_forward), pas d'historique propre.
     forward_peg = kv.get_json("forward:noos_peg", {})
     if forward_peg:
         ligne["peg_forward"] = forward_peg
+
+    # Forward elec France (NOOS PWRTE) : {"m1": {"base":..,"peak":..}, ...},
+    # EUR/MWh -- meme principe, ecrit par cron_daily.
+    forward_elec = kv.get_json("forward:noos_elec", {})
+    if forward_elec:
+        ligne["elec_forward"] = forward_elec
 
     points_activation = kv.get_json("raw:afrr_activation", [])
     if points_activation:

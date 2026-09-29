@@ -154,3 +154,27 @@ def fetch_peg_forward(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list[
     donnees = noos_client.appelle_api_noos_peg(params)
     points = donnees.get("time_series") or []
     return [{"ts": p["timestamp"], "prix": float(p["value"])} for p in points]
+
+
+def fetch_elec_forward_base_peak(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> dict:
+    """Base/Peak forward elec France (NOOS, courbe PWRTE) sur [date_debut,
+    date_fin[. NOOS n'expose qu'une courbe brute 15 min (pas de produit
+    Base/Peak natif) -- calcule cote client, meme convention que celle
+    communiquee par l'utilisateur : Base = moyenne simple de TOUS les points
+    15 min de la fenetre ; Peak = moyenne des points sur les jours ouvres
+    (lundi-vendredi) entre 8h et 20h (convention europeenne), heure locale
+    Europe/Paris. Renvoie {"base": None, "peak": None} si NOOS ne renvoie
+    aucun point sur la fenetre."""
+    params = {"start_at": date_debut.isoformat(), "end_at": date_fin.isoformat()}
+    donnees = noos_client.appelle_api_noos_elec(params)
+    points = donnees.get("time_series") or []
+    if not points:
+        return {"base": None, "peak": None}
+    df = pd.DataFrame(points)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert("Europe/Paris")
+    base = float(df["value"].mean())
+    jour_ouvre = df["timestamp"].dt.weekday < 5
+    heure_peak = df["timestamp"].dt.hour.between(8, 19)
+    valeurs_peak = df.loc[jour_ouvre & heure_peak, "value"]
+    peak = float(valeurs_peak.mean()) if len(valeurs_peak) else None
+    return {"base": base, "peak": peak}

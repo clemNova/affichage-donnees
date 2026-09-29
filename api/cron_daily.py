@@ -93,26 +93,43 @@ def fetch_et_stocke_fenetre(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
     except Exception:
         resultats["noos_peg"] = f"echec: {traceback.format_exc(limit=2)}"
 
+    fenetres_forward = {
+        "m1": _fenetre_mois_plus(1),
+        "m2": _fenetre_mois_plus(2),
+        "q1": _fenetre_trimestre_apres_m2(),
+    }
+
     try:
         # Forward PEG (NOOS) : moyenne des points renvoyes sur chaque fenetre
         # M+1/M+2/1er trimestre apres M+2 -- pas d'historique, chaque
         # execution ecrase forward:noos_peg avec les valeurs courantes (les
-        # fenetres glissent avec le calendrier, cf. store.maj_forward_gaz).
+        # fenetres glissent avec le calendrier, cf. store.maj_forward).
         valeurs_forward: dict = {}
-        for periode, (debut_p, fin_p) in {
-            "m1": _fenetre_mois_plus(1),
-            "m2": _fenetre_mois_plus(2),
-            "q1": _fenetre_trimestre_apres_m2(),
-        }.items():
+        for periode, (debut_p, fin_p) in fenetres_forward.items():
             points = fetchers.fetch_peg_forward(debut_p, fin_p)
             prix = [p["prix"] for p in points if p.get("prix") is not None]
             if prix:
                 valeurs_forward[periode] = sum(prix) / len(prix)
         if valeurs_forward:
-            store.maj_forward_gaz("noos_peg", valeurs_forward)
+            store.maj_forward("noos_peg", valeurs_forward)
         resultats["noos_peg_forward"] = valeurs_forward or "aucune donnee"
     except Exception:
         resultats["noos_peg_forward"] = f"echec: {traceback.format_exc(limit=2)}"
+
+    try:
+        # Forward elec France (NOOS PWRTE) : Base/Peak calcules cote client
+        # sur chaque fenetre (cf. fetchers.fetch_elec_forward_base_peak),
+        # memes fenetres M+1/M+2/1er trimestre apres M+2 que le gaz.
+        valeurs_elec: dict = {}
+        for periode, (debut_p, fin_p) in fenetres_forward.items():
+            base_peak = fetchers.fetch_elec_forward_base_peak(debut_p, fin_p)
+            if base_peak.get("base") is not None:
+                valeurs_elec[periode] = base_peak
+        if valeurs_elec:
+            store.maj_forward("noos_elec", valeurs_elec)
+        resultats["noos_elec_forward"] = valeurs_elec or "aucune donnee"
+    except Exception:
+        resultats["noos_elec_forward"] = f"echec: {traceback.format_exc(limit=2)}"
 
     return resultats
 
