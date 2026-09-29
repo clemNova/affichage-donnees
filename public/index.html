@@ -748,6 +748,15 @@
   chargerEtRendre();
   setInterval(chargerEtRendre, REFRESH_MS);
   setInterval(retracerLocalement, LOCAL_TICK_MS);
+
+  // Carrousel TV : bascule automatiquement sur l'autre dashboard après un
+  // délai (10s pour l'instant, à ajuster une fois validé) -- cf. échange
+  // utilisateur. "?carousel=off" dans l'URL désactive la bascule (pratique
+  // pour tester/regarder la page sans qu'elle change toutes les 10s).
+  const CAROUSEL_MS = 10 * 1000;
+  if(new URLSearchParams(location.search).get("carousel") !== "off"){
+    setTimeout(() => { window.location.href = "coge.html" + location.search; }, CAROUSEL_MS);
+  }
 })();
 </script>
 </body>
