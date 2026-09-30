@@ -17,6 +17,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from _lib import kv
+from _lib import chaleur_store
 from _lib.chaleur_store import CLE_INDICE
 
 CHEMIN_JSON = os.path.join(
@@ -33,4 +34,8 @@ def executer() -> dict:
     for ligne in lignes:
         indice[ligne["annee_mois"]] = ligne
     kv.set_json(CLE_INDICE, indice)
-    return {"mois_importes": len(lignes), "premier_mois": min(indice), "dernier_mois": max(indice)}
+    # Le snapshot lu par /api/chaleur embarque la liste des mois : le
+    # recalculer maintenant, sinon la page garde l'ancien historique jusqu'au
+    # prochain cron (GitHub Actions peut tarder plusieurs heures).
+    chaleur_store.calcule_et_sauvegarde_snapshot()
+    return {"mois_importes": len(lignes), "premier_mois": min(indice), "dernier_mois": max(indice), "snapshot_rafraichi": True}
