@@ -140,6 +140,67 @@ métrique a la sienne (`mode` dans `store._kpis_courbe_connue`/`_reference_compa
   dans le CSV fourni : `hist_mensuel:mfrr_down_capa` ne couvre par exemple
   que depuis 2026-05, donc pas de pill "Baisse" pour mFRR avant 2027).
 
+## Dashboard Chaudières électriques (`public/chaleur.html`)
+
+3e page du carrousel TV : coût de revient d'un MWh thermique **élec** vs **gaz**,
+heure par heure, et **Indice NOW** (économie de l'arbitrage élec/gaz vs gaz seul).
+Méthode : `data/export/FICHE_METHODE_COUT_CHALEUR.md` ; implémentation de
+référence : `data/export/calcul_indice_now.py`. Raccordement affiché : **HTB1/LU
+(RTE)**.
+
+- **Jour** : courbes élec (vert) / gaz (orange), zone entre les deux colorée
+  heure par heure selon le moins cher, tuile "coût du MWh maintenant".
+- **30 j glissants (720 h)** : nb d'heures où l'arbitrage choisit l'élec / le
+  gaz (total = 720 h), Indice NOW moyen, coûts moyens élec / gaz / arbitrage.
+- **Historique** : Indice NOW mensuel depuis 2021, un point de plus à chaque
+  clôture de mois.
+
+Code : `api/_lib/chaleur.py` (calculs purs, paramètres, TURPE),
+`api/_lib/chaleur_store.py` (KV + snapshot). Clés KV :
+- `hist_chaleur:horaire` — `{"YYYY-MM-DDTHH": {"elec","gaz"}}` (EUR/MWh th),
+  45 jours. Alimenté par `cron_daily` (moyenne horaire de `raw:da` + PEG de
+  `hist:noos_peg`).
+- `hist_chaleur:indice_now` — `{"YYYY-MM": ligne mensuelle}`, **permanent**.
+  Seedé depuis `data/export/indice_now_mensuel_HTB1_LU.json`, puis complété par
+  `cron_daily` (`chaleur_store.maj_mois_clos`) dès que le mois précédent est
+  clos et couvert à ≥ 95 % par des heures — aucun déclencheur supplémentaire.
+- `chaleur:latest` — snapshot lu par `/api/chaleur` (public), recalculé par
+  `cron_15min` et `cron_daily`.
+
+**Hypothèses live** (différences avec le script de référence) :
+- **Services système (aFRR capacité)** : inclus dans l'**Indice NOW** (30 j
+  glissants et mensuel, champs `elec_net`/`gaz_net`, cohérent avec le CSV
+  historique) mais **pas** dans les courbes de coût de revient du jour (champs
+  bruts `elec`/`gaz`). Hausse déduite côté élec, baisse côté gaz ; heure sans
+  prix = 0. Prix RTE natifs (EUR/MW/15 min, `raw:afrr_*_capa`) × 4 =
+  EUR/MW/h du CSV (`chaleur.AFRR_EUR_MW_H_PAR_UNITE_RTE`, calé sur l'ordre de
+  grandeur des gains journaliers — à reverifier sur données réelles).
+- **CO2 constant** (`chaleur.CO2_EUR_T = 79`, dernière valeur du CSV, pas de
+  pipeline live) — à mettre à jour à la main.
+- **PEG** : un prix par jour. Jusqu'au 27/08/2026, celui du CSV d'export ;
+  ensuite `hist:noos_peg` (NOOS), que `/api/backfill_chaleur` alimente jour par
+  jour (`published_at`) pour les jours manquants, puis `cron_daily`. Un jour sans
+  PEG connu (jour futur, week-end, NOOS muet) prend le dernier jour connu
+  (`chaleur_store.peg_par_jour_depuis_hist`).
+- **TURPE** : `data/chaleur/turpe_htb1_lu.json`, dérivé du CSV par
+  `data/chaleur/generer_turpe.py` (à relancer si le tarif change) ; jours fériés
+  non distingués (~2 % d'heures, écart < 0.5 EUR/MWh de TURPE).
+- Août 2026 reste la valeur (partielle, 638 h) du CSV : le CSV s'arrête au
+  27/08. Septembre est le premier mois calculé côté serveur.
+
+**Mise en route (une fois, après déploiement)** :
+
+```powershell
+curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/importer_indice_now   # historique mensuel
+curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/backfill_chaleur      # PEG NOOS depuis le 28/08 + heures des 45 derniers jours (DA ENTSO-E)
+curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/cron_daily            # snapshot
+curl.exe https://<url>/api/chaleur
+```
+
+`/api/backfill_chaleur` et `/api/importer_indice_now` sont manuels et protégés
+par `CRON_SECRET`, comme les autres backfills. `backfill_chaleur` n'écrit pas
+`raw:da` (contrairement à `backfill_historique`).
+
 ## 1. Déployer sur Vercel (nécessite ton compte)
 
 1. **Compte Vercel** (gratuit) si tu n'en as pas — [vercel.com/signup](https://vercel.com/signup),

@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Chaudières électriques</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap">
+<style>
+  /* Identité NovaWatt : copiée de coge.html / index.html (même choix que
+     Cogé : pas de CSS partagé, pour ne pas risquer de casser les autres
+     dashboards en les refactorisant). */
+  :root{
+    color-scheme: dark;
+    --novawatt-bleu:#1E3872;
+    --novawatt-vert:#73BC65;
+    --novawatt-orange:#F5A623;
+    --novawatt-bleu-clair:#B9CDE5;
+
+    --bg:#1E3872;
+    --panel:#2a4a89;
+    --panel-2:#193668;
+    --panel-muted:#1d3b70;
+    --line:#3f5fa0;
+    --line-muted:#2f4d85;
+    --grid:#345792;
+    --text:#ffffff;
+    --text-dim:#c7d4ee;
+    --text-faint:#9ab0dd;
+    /* Convention de couleurs demandée : élec = vert, gaz = orange. */
+    --elec:var(--novawatt-vert);
+    --gaz:var(--novawatt-orange);
+
+    --font-titres:'Ubuntu', system-ui, sans-serif;
+    --font-corps:'Aptos', 'Ubuntu', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{background:var(--bg);height:100%}
+  body{
+    margin:0;color:var(--text);
+    font-family:var(--font-corps);
+    -webkit-font-smoothing:antialiased;
+    height:100vh;overflow:hidden;
+    display:flex;flex-direction:column;
+    padding:18px 24px 16px;
+  }
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px 24px;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:14px;flex:0 0 auto}
+  .header-left{display:flex;align-items:center;gap:12px}
+  .logo-novawatt-header{height:1.9rem;width:auto;display:block}
+  h1{font-family:var(--font-titres);font-size:1.9rem;font-weight:700;letter-spacing:-0.01em;margin:0}
+  h1 .subhead{font-family:var(--font-corps);color:var(--text-dim);font-weight:400;font-size:.85rem;margin-left:10px}
+  .header-right{display:flex;align-items:center;gap:16px}
+  .btn-fullscreen{
+    flex:none;align-self:center;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--line-muted);border-radius:6px;color:var(--text-dim);
+    font-size:13px;line-height:1;cursor:pointer;padding:0;
+  }
+  .btn-fullscreen:hover{color:var(--text);border-color:var(--line)}
+
+  .dash-nav{display:flex;gap:6px}
+  .dash-nav-link{font-family:var(--font-titres);font-size:.72rem;font-weight:600;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--line-muted);border-radius:999px;padding:4px 12px;text-decoration:none;transition:color .1s,border-color .1s}
+  .dash-nav-link:hover{color:var(--text);border-color:var(--line)}
+  .dash-nav-link.active{color:var(--text);background:var(--panel-muted);border-color:var(--line);font-weight:700}
+
+  main.dashboard{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px}
+  .row-haut{flex:1;min-height:0;display:flex;gap:16px}
+  .row-bas{flex:1.3;min-height:0;display:flex}
+
+  .section-title{font-family:var(--font-titres);font-size:1.05rem;font-weight:500;letter-spacing:.01em;color:var(--text-dim)}
+  .section-title em{font-style:normal;font-weight:700;color:var(--text)}
+  .section-sub{font-size:.72rem;color:var(--text-faint);margin-left:8px}
+  /* Titre + date/heure en haut à droite, même convention que les graphes
+     day-ahead du dashboard BESS et spark spread de Cogé. */
+  .chart-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex:0 0 auto}
+  .clock-mini{font-family:var(--font-corps);font-size:1rem;font-weight:700;color:var(--text);white-space:nowrap}
+  .clock-mini strong{color:var(--novawatt-bleu-clair)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;flex-direction:column;padding:14px 16px 12px;gap:6px}
+  .card.accent-jour{border-top:3px solid var(--elec);flex:1.1;min-width:0}
+  .card.accent-mois{border-top:3px solid var(--gaz);flex:1;min-width:0}
+  .card.accent-now{border-top:3px solid var(--novawatt-bleu-clair);flex:1;min-width:0}
+
+  .chart-wrap{position:relative;flex:1;min-height:0}
+  .chart-wrap svg{display:block;width:100%;height:100%}
+  .tick-label{font-family:var(--font-corps);font-size:10px;fill:var(--text-faint)}
+  .axis-unit{font-family:var(--font-corps);font-size:10px;font-weight:700;fill:var(--text-faint)}
+  .point-label{font-family:var(--font-corps);font-size:11px;font-weight:700;fill:var(--text)}
+  .grid-line{stroke:var(--grid);stroke-width:1}
+  .axis-line{stroke:var(--line-muted);stroke-width:1}
+  .crosshair-tip{
+    position:absolute;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:6px;padding:6px 9px;font-family:var(--font-corps);font-size:.72rem;
+    color:var(--text);white-space:nowrap;opacity:0;transition:opacity .1s;transform:translate(-50%,-115%);z-index:5;
+  }
+  .crosshair-tip .k{color:var(--text-faint)}
+
+  /* --- Carte jour : légende à gauche, tuile "coût du MWh" à droite --- */
+  .jour-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto}
+  .legend{display:flex;gap:16px;flex-wrap:wrap}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-dim)}
+  .legend-swatch{display:inline-block;width:16px;height:4px;border-radius:2px}
+  .legend-swatch.zone{height:10px;opacity:.55}
+  .tile-cout{display:flex;flex-direction:column;align-items:flex-end;gap:1px;padding:6px 14px;border-radius:8px;border:2px solid var(--line-muted);background:var(--panel-2);min-width:150px}
+  .tile-cout .lbl{font-family:var(--font-titres);font-size:.66rem;color:var(--text-faint)}
+  .tile-cout .val{font-weight:700;font-size:1.5rem;font-variant-numeric:tabular-nums;line-height:1.1}
+  .tile-cout .val small{font-size:.5em;font-weight:500;color:var(--text-dim);margin-left:3px}
+  .tile-cout.elec{border-color:var(--elec)}
+  .tile-cout.elec .val{color:var(--elec)}
+  .tile-cout.gaz{border-color:var(--gaz)}
+  .tile-cout.gaz .val{color:var(--gaz)}
+
+  /* --- Carte mois : grille 2x2 --- */
+  .mois-grid{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px}
+  .tile{border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:2px;min-height:0;min-width:0}
+  .tile.heures{color:var(--bg);align-items:center;text-align:center}
+  .tile.heures.elec{background:var(--elec)}
+  .tile.heures.gaz{background:var(--gaz)}
+  .tile.heures .big{font-weight:700;font-size:2.6rem;line-height:1;font-variant-numeric:tabular-nums}
+  .tile.heures .big small{font-size:.38em;font-weight:600;margin-left:4px}
+  .tile.heures .lbl{font-family:var(--font-titres);font-size:.85rem;font-weight:700}
+  .tile.heures .sub{font-size:.72rem;font-weight:500;opacity:.8}
+  .tile.info{background:var(--panel-2);border:1px solid var(--line-muted)}
+  .tile.info .lbl{font-family:var(--font-titres);font-size:.85rem;color:var(--text-faint)}
+  .tile.info.couts .lbl{font-size:.72rem}
+  .tile.info .big{font-weight:700;font-size:3rem;line-height:1.05;font-variant-numeric:tabular-nums}
+  .tile.info .big small{font-size:.42em;font-weight:500;color:var(--text-dim);margin-left:4px}
+  .tile.info .sub{font-size:.78rem;color:var(--text-faint)}
+  .big-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  /* Pastille de variation (vs A-1) : une économie plus grande = mieux = vert. */
+  .pill{display:inline-flex;align-items:center;gap:4px;font-weight:800;font-size:.8rem;padding:2px 8px;border-radius:999px;line-height:1.5;white-space:nowrap}
+  .pill.up{color:var(--novawatt-vert);background:color-mix(in srgb, var(--novawatt-vert) 16%, transparent)}
+  .pill.down{color:var(--novawatt-orange);background:color-mix(in srgb, var(--novawatt-orange) 16%, transparent)}
+  .pill-cap{font-size:.68rem;color:var(--text-faint);font-weight:500;margin-left:2px}
+  .couts-rows{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+  .cout-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.8rem;color:var(--text-dim)}
+  .cout-row .nom{display:flex;align-items:center;gap:6px}
+  .cout-row .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .cout-row .v small{font-size:.5em;font-weight:500;color:var(--text-dim);margin-left:3px}
+  .cout-row .v{font-weight:700;font-size:1.5rem;color:var(--text);font-variant-numeric:tabular-nums}
+  .dot.mix{background:linear-gradient(90deg,var(--elec) 50%,var(--gaz) 50%)}
+
+  .vide{color:var(--text-faint);font-size:.85rem;padding:12px}
+
+  @media (max-width:1100px){
+    body{height:auto;overflow:auto}
+    .row-haut{flex-direction:column}
+    .chart-wrap{min-height:220px}
+    main.dashboard{gap:20px}
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <img class="logo-novawatt-header" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
+      <h1>Dashboard Chaudières électriques<span class="subhead">Coût de revient de la chaleur élec vs gaz, Indice NoW — HTB1/LU</span></h1>
+    </div>
+    <div class="header-right">
+      <nav class="dash-nav">
+        <a class="dash-nav-link" href="index.html">BESS</a>
+        <a class="dash-nav-link" href="coge.html">Cogé</a>
+        <a class="dash-nav-link active" href="chaleur.html">Chaudières élec</a>
+      </nav>
+      <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">⛶</button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+
+    <section class="row-haut">
+      <div class="card accent-jour">
+        <div class="chart-head">
+          <span class="section-title"><em>Coût de revient</em> d'un MWh de chaleur<span class="section-sub">hors services système, €/MWh th</span></span>
+          <span class="clock-mini" id="clock-jour">—</span>
+        </div>
+        <div class="chart-wrap" id="chart-jour"></div>
+        <div class="jour-foot">
+          <div class="legend">
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--elec)"></span>Chaleur élec</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--gaz)"></span>Chaleur gaz</span>
+            <span class="legend-item"><span class="legend-swatch zone" style="background:var(--elec)"></span><span class="legend-swatch zone" style="background:var(--gaz)"></span>Zone = le moins cher</span>
+          </div>
+          <div class="tile-cout" id="tile-cout">
+            <span class="lbl" id="tile-cout-lbl">Coût du MWh de chaleur maintenant</span>
+            <span class="val" id="tile-cout-val">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card accent-mois">
+        <div class="chart-head">
+          <span class="section-title"><em>30 jours glissants</em><span class="section-sub" id="mois-sub"></span></span>
+        </div>
+        <div class="mois-grid">
+          <div class="tile heures elec">
+            <span class="lbl">Heures en élec</span>
+            <span class="big"><span id="h-elec">—</span><small>h</small></span>
+            <span class="sub" id="h-elec-pct"></span>
+          </div>
+          <div class="tile heures gaz">
+            <span class="lbl">Heures en gaz</span>
+            <span class="big"><span id="h-gaz">—</span><small>h</small></span>
+            <span class="sub" id="h-gaz-pct"></span>
+          </div>
+          <div class="tile info">
+            <span class="lbl">Indice NoW 30 j</span>
+            <div class="big-row"><span class="big" id="indice-30j">—</span><span id="indice-30j-pill"></span></div>
+            <span class="sub" id="indice-30j-sub">économie de l'arbitrage vs gaz seul</span>
+          </div>
+          <div class="tile info couts">
+            <span class="lbl">Coût moyen du MWh de chaleur</span>
+            <div class="couts-rows">
+              <div class="cout-row"><span class="nom"><span class="dot" style="background:var(--elec)"></span>Élec</span><span class="v" id="cout-elec">—</span></div>
+              <div class="cout-row"><span class="nom"><span class="dot" style="background:var(--gaz)"></span>Gaz</span><span class="v" id="cout-gaz">—</span></div>
+              <div class="cout-row"><span class="nom"><span class="dot mix"></span>Élec + gaz</span><span class="v" id="cout-arb">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="row-bas">
+      <div class="card accent-now" style="flex:1">
+        <div class="chart-head">
+          <span class="section-title"><em>Indice NoW</em> — historique mensuel<span class="section-sub">gain de l'arbitrage élec/gaz vs gaz seul pour 1 MW, services système inclus, €/MW/mois, mis à jour à la clôture de chaque mois</span></span>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-swatch zone" style="background:var(--elec)"></span>Part d'heures en élec</span>
+            <span class="legend-item"><span class="legend-swatch zone" style="background:var(--gaz)"></span>Part d'heures en gaz</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#fff"></span>Indice NoW</span>
+          </div>
+        </div>
+        <div class="chart-wrap" id="chart-now"></div>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+(function(){
+  "use strict";
+
+  const REFRESH_MS = 5 * 60 * 1000;
+  const LOCAL_TICK_MS = 60 * 1000;
+  const PAD_L = 44, PAD_R = 16, PAD_T = 18, PAD_B = 22;
+  const VERT = "#73BC65", ORANGE = "#F5A623", CLAIR = "#B9CDE5";
+
+  function svgEl(tag, attrs){
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for(const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function setText(id, t){ const el = document.getElementById(id); if(el) el.textContent = t; }
+  function setHtml(id, h){ const el = document.getElementById(id); if(el) el.innerHTML = h; }
+  function fmt(v, d){
+    if(v === null || v === undefined || Number.isNaN(v)) return "—";
+    return v.toLocaleString("fr-FR", {minimumFractionDigits:d, maximumFractionDigits:d});
+  }
+  function unite(v, d){ return v === null || v === undefined ? "—" : `${fmt(v,d)}<small>€/MWh</small>`; }
+  // Même format que les dashboards BESS/Cogé.
+  function fmtDateJour(d){
+    const s = d.toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long"});
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function fmtHeure(d){ return d.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}); }
+
+  function pasRond(brut){
+    const mag = Math.pow(10, Math.floor(Math.log10(brut)));
+    const r = brut / mag;
+    if(r > 5) return 10 * mag;
+    if(r > 2) return 5 * mag;
+    if(r > 1) return 2 * mag;
+    return mag;
+  }
+  // Échelle Y : `zero` force la base à 0 (indice >= 0), sinon base arrondie
+  // sous le minimum pour que l'écart entre les 2 courbes reste lisible.
+  function echelleY(valeurs, H, zero, padB = PAD_B){
+    const v = valeurs.filter(x => x !== null && x !== undefined && !Number.isNaN(x));
+    let lo = v.length ? Math.min(...v) : 0, hi = v.length ? Math.max(...v) : 1;
+    if(zero) lo = Math.min(lo, 0);
+    if(lo === hi) hi = lo + 1;
+    const pas = pasRond((hi - lo) / 4) || 1;
+    lo = Math.floor(lo / pas) * pas; hi = Math.ceil(hi / pas) * pas;
+    const ticks = [];
+    for(let t = lo; t <= hi + pas * .5; t += pas) ticks.push(Math.round(t / pas) * pas);
+    const plotH = H - PAD_T - padB;
+    return { ticks, y: t => PAD_T + plotH - ((t - lo) / (hi - lo)) * plotH };
+  }
+
+  // Le SVG est dessiné à la taille réelle du conteneur (pas de viewBox
+  // étirée) : texte et points restent non déformés sur une carte très large.
+  function creeSvg(container){
+    container.innerHTML = "";
+    const W = Math.max(container.clientWidth, 200), H = Math.max(container.clientHeight, 120);
+    const svg = svgEl("svg", {viewBox:`0 0 ${W} ${H}`, width:W, height:H});
+    container.appendChild(svg);
+    return {svg, W, H};
+  }
+  function grilleY(svg, W, ech, unit, padR = PAD_R, fmtTick = t => t.toLocaleString("fr-FR")){
+    ech.ticks.forEach(t => {
+      const y = ech.y(t);
+      svg.appendChild(svgEl("line", {class:"grid-line", x1:PAD_L, x2:W-padR, y1:y.toFixed(1), y2:y.toFixed(1)}));
+      const l = svgEl("text", {class:"tick-label", x:PAD_L-6, y:(y+3).toFixed(1), "text-anchor":"end"});
+      l.textContent = fmtTick(t);
+      svg.appendChild(l);
+    });
+    const u = svgEl("text", {class:"axis-unit", x:PAD_L, y:(PAD_T-6).toFixed(1)});
+    u.textContent = unit;
+    svg.appendChild(u);
+  }
+  function infobulle(container, svg, W, H, texteAt, padB = PAD_B){
+    const tip = document.createElement("div");
+    tip.className = "crosshair-tip";
+    container.appendChild(tip);
+    const guide = svgEl("line", {y1:PAD_T, y2:H-padB, stroke:"var(--text-faint)", "stroke-width":1, opacity:0});
+    svg.appendChild(guide);
+    svg.addEventListener("mousemove", e => {
+      const r = svg.getBoundingClientRect();
+      const px = e.clientX - r.left;
+      const res = texteAt(px);
+      if(!res){ guide.setAttribute("opacity", 0); tip.style.opacity = 0; return; }
+      guide.setAttribute("x1", res.x.toFixed(1)); guide.setAttribute("x2", res.x.toFixed(1)); guide.setAttribute("opacity", .6);
+      tip.innerHTML = res.html;
+      tip.style.left = res.x + "px"; tip.style.top = "8px"; tip.style.opacity = 1;
+    });
+    svg.addEventListener("mouseleave", () => { guide.setAttribute("opacity", 0); tip.style.opacity = 0; });
+  }
+
+  // --- Graphe du jour : 24 valeurs horaires, courbes en escalier (un prix
+  // par heure) ; zone entre les 2 courbes colorée heure par heure selon le
+  // moins cher (vert = élec, orange = gaz). Escalier => aucun croisement en
+  // cours d'heure, pas d'interpolation nécessaire. ---
+  function dessineJour(jour, maintenant, historique){
+    const cont = document.getElementById("chart-jour");
+    const elec = new Array(24).fill(null), gaz = new Array(24).fill(null);
+    (jour || []).forEach(p => { elec[p.h] = p.elec; gaz[p.h] = p.gaz; });
+    const {svg, W, H} = creeSvg(cont);
+    const plotW = W - PAD_L - PAD_R;
+    const x = h => PAD_L + (h / 24) * plotW;
+    const ech = echelleY(elec.concat(gaz), H, false);
+    grilleY(svg, W, ech, "€/MWh th");
+    [0,3,6,9,12,15,18,21].forEach(h => {
+      const t = svgEl("text", {class:"tick-label", x:x(h).toFixed(1), y:H-6, "text-anchor":"middle"});
+      t.textContent = String(h).padStart(2,"0") + "h";
+      svg.appendChild(t);
+    });
+    svg.appendChild(svgEl("line", {class:"axis-line", x1:PAD_L, x2:W-PAD_R, y1:H-PAD_B, y2:H-PAD_B}));
+    if(!(jour && jour.length)){
+      const t = svgEl("text", {class:"tick-label", x:W/2, y:H/2, "text-anchor":"middle"});
+      t.textContent = "Prix du jour pas encore disponibles";
+      svg.appendChild(t);
+      return;
+    }
+
+    for(let h = 0; h < 24; h++){
+      if(elec[h] === null) continue;
+      const yE = ech.y(elec[h]), yG = ech.y(gaz[h]);
+      svg.appendChild(svgEl("rect", {
+        x:x(h).toFixed(1), width:(x(h+1)-x(h)).toFixed(1),
+        y:Math.min(yE,yG).toFixed(1), height:Math.max(Math.abs(yE-yG),0.5).toFixed(1),
+        fill: elec[h] < gaz[h] ? VERT : ORANGE, opacity:.55,
+      }));
+    }
+    [[elec, VERT], [gaz, ORANGE]].forEach(([serie, couleur]) => {
+      let d = "", precY = null;
+      for(let h = 0; h < 24; h++){
+        if(serie[h] === null){ precY = null; continue; }
+        const y = ech.y(serie[h]);
+        d += precY === null ? ` M ${x(h).toFixed(1)} ${y.toFixed(1)}` : ` L ${x(h).toFixed(1)} ${y.toFixed(1)}`;
+        d += ` L ${x(h+1).toFixed(1)} ${y.toFixed(1)}`;
+        precY = y;
+      }
+      svg.appendChild(svgEl("path", {d:d.trim(), fill:"none", stroke:couleur, "stroke-width":2.5, "stroke-linecap":"round", "stroke-linejoin":"round"}));
+    });
+
+    // Repère "maintenant" : ligne pointillée + un point sur chaque courbe.
+    const hNow = maintenant.getHours(), fNow = hNow + maintenant.getMinutes() / 60;
+    if(!historique && elec[hNow] !== null){
+      svg.appendChild(svgEl("line", {x1:x(fNow).toFixed(1), x2:x(fNow).toFixed(1), y1:PAD_T, y2:H-PAD_B, stroke:"var(--text-faint)", "stroke-width":1, "stroke-dasharray":"3,3", opacity:.6}));
+      [[elec[hNow], VERT], [gaz[hNow], ORANGE]].forEach(([v, c]) => {
+        svg.appendChild(svgEl("circle", {cx:x(fNow).toFixed(1), cy:ech.y(v).toFixed(1), r:5, fill:c, stroke:"var(--bg)", "stroke-width":2}));
+      });
+    }
+
+    infobulle(cont, svg, W, H, px => {
+      const h = Math.floor(((px - PAD_L) / plotW) * 24);
+      if(h < 0 || h > 23 || elec[h] === null) return null;
+      const gagnant = elec[h] < gaz[h] ? "élec" : "gaz";
+      const hh = String(h).padStart(2,"0"), h1 = String((h+1)%24).padStart(2,"0");
+      return {x:x(h+.5), html:`<div>${hh}:00–${h1}:00</div><span class="k">Élec :</span> ${fmt(elec[h],1)}<br><span class="k">Gaz :</span> ${fmt(gaz[h],1)}<br><span class="k">Le moins cher :</span> ${gagnant} (−${fmt(Math.abs(elec[h]-gaz[h]),1)})`};
+    });
+  }
+
+  // --- Graphe du bas : Indice NoW mensuel, tout l'historique. Chaque mois est
+  // une colonne pleine hauteur : vert en bas = part d'heures en élec, orange
+  // au-dessus = part d'heures en gaz (pourcentage d'heures élec sous la
+  // colonne) ; la ligne blanche est l'indice du mois. ---
+  function dessineHistorique(lignes){
+    const cont = document.getElementById("chart-now");
+    const {svg, W, H} = creeSvg(cont);
+    if(!lignes.length){
+      const t = svgEl("text", {class:"tick-label", x:W/2, y:H/2, "text-anchor":"middle"});
+      t.textContent = "Historique pas encore importé";
+      svg.appendChild(t);
+      return;
+    }
+    const padR = 90; // place pour l'étiquette du dernier point, à droite
+    const padB = 38; // mois repères + années sous l'axe
+    const plotW = W - PAD_L - padR;
+    const n = lignes.length, pas = plotW / n;
+    const x = i => PAD_L + (i + .5) * pas;
+    const ech = echelleY(lignes.map(l => l.gain_total_eur_mois), H, true, padB);
+    const yHaut = ech.y(ech.ticks[ech.ticks.length - 1]), yBas = ech.y(0);
+
+    // Colonnes en fond (sous la grille pour qu'elle reste lisible).
+    lignes.forEach((l, i) => {
+      const hElec = (yBas - yHaut) * l.part_heures_elec;
+      const gauche = (PAD_L + i * pas).toFixed(1), largeur = (pas + .5).toFixed(1);
+      svg.appendChild(svgEl("rect", {x:gauche, width:largeur, y:yHaut.toFixed(1), height:(yBas - yHaut - hElec).toFixed(1), fill:ORANGE, opacity:.35}));
+      svg.appendChild(svgEl("rect", {x:gauche, width:largeur, y:(yBas - hElec).toFixed(1), height:hElec.toFixed(1), fill:VERT, opacity:.45}));
+    });
+
+    grilleY(svg, W, ech, "€/MW/mois", padR, t => t === 0 ? "0" : `${fmt(t/1000,0)}k€`);
+    svg.appendChild(svgEl("line", {class:"axis-line", x1:PAD_L, x2:W-padR, y1:yBas.toFixed(1), y2:yBas.toFixed(1)}));
+    // Part d'heures élec (%) au sommet de la barre verte, années sous l'axe.
+    lignes.forEach((l, i) => {
+      const yTop = yBas - (yBas - yHaut) * l.part_heures_elec;
+      const pct = svgEl("text", {class:"tick-label", x:x(i).toFixed(1), y:(yTop - 4).toFixed(1), "text-anchor":"middle", style:"fill:#ffffff;fill-opacity:.6", "font-weight":"400", "font-size":Math.min(10, pas * .42).toFixed(1)});
+      pct.textContent = Math.round(l.part_heures_elec * 100) + "%";
+      svg.appendChild(pct);
+      const mois = +l.annee_mois.slice(5);
+      if(mois === 1){
+        const an = svgEl("text", {class:"tick-label", x:(PAD_L + i * pas).toFixed(1), y:H-6, "text-anchor":"start", "font-weight":"700"});
+        an.textContent = l.annee_mois.slice(0,4);
+        svg.appendChild(an);
+      }else if(mois === 4 || mois === 7 || mois === 10){
+        // Quelques mois repères (avr., juil., oct.), pas tous.
+        const m = svgEl("text", {class:"tick-label", x:x(i).toFixed(1), y:H-22, "text-anchor":"middle"});
+        m.textContent = new Date(2000, mois - 1, 1).toLocaleDateString("fr-FR", {month:"short"});
+        svg.appendChild(m);
+      }
+    });
+
+    const pts = lignes.map((l, i) => [x(i), ech.y(l.gain_total_eur_mois)]);
+    svg.appendChild(svgEl("path", {d:pts.map((p, i) => `${i ? "L" : "M"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" "), fill:"none", stroke:"#ffffff", "stroke-width":2.5, "stroke-linecap":"round", "stroke-linejoin":"round"}));
+    pts.forEach(([px, py]) => svg.appendChild(svgEl("circle", {cx:px.toFixed(1), cy:py.toFixed(1), r:3.5, fill:"#ffffff", stroke:"#2a78d6", "stroke-width":1.5})));
+
+    const dern = lignes[n-1], [dx, dy] = pts[n-1];
+    const lab = svgEl("text", {class:"point-label", x:(dx+12).toFixed(1), y:(dy+4).toFixed(1), "text-anchor":"start"});
+    lab.textContent = `${fmt(dern.gain_total_eur_mois/1000,1)} k€/MW/mois`;
+    svg.appendChild(lab);
+
+    infobulle(cont, svg, W, H, px => {
+      const i = Math.floor((px - PAD_L) / pas);
+      if(i < 0 || i >= n) return null;
+      const l = lignes[i];
+      const [an, mo] = l.annee_mois.split("-");
+      const mois = new Date(+an, +mo-1, 1).toLocaleDateString("fr-FR", {month:"long", year:"numeric"});
+      return {x:x(i), html:`<div>${mois.charAt(0).toUpperCase()+mois.slice(1)}</div><span class="k">Indice NoW :</span> ${fmt(l.gain_total_eur_mois,0)} €/MW/mois (${fmt(l.indice_now_eur_mwh,1)} €/MWh)<br><span class="k">Heures en élec :</span> ${fmt(l.part_heures_elec*100,0)} %<br><span class="k">Heures en gaz :</span> ${fmt((1-l.part_heures_elec)*100,0)} %`};
+    }, padB);
+  }
+
+  function rendreStats(g, snapA1){
+    const ok = g && g.nb_heures;
+    setText("mois-sub", ok ? `${g.nb_heures} h · services système inclus` : "");
+    setText("h-elec", ok ? String(g.nb_heures_elec) : "—");
+    setText("h-gaz", ok ? String(g.nb_heures_gaz) : "—");
+    setText("h-elec-pct", ok ? `${fmt(g.nb_heures_elec / g.nb_heures * 100, 0)} % du temps · services système inclus` : "");
+    setText("h-gaz-pct", ok ? `${fmt(g.nb_heures_gaz / g.nb_heures * 100, 0)} % du temps · services système inclus` : "");
+    // Signe "−" : c'est une économie (un coût évité).
+    // Gain sur la fenêtre pour 1 MW (indice en €/MWh x heures), en €/MW.
+    setHtml("indice-30j", ok ? `−${fmt(g.indice_now_eur_mwh * g.nb_heures, 0)}<small>€/MW</small>` : "—");
+    // Comparaison avec la même fenêtre de 30 jours un an plus tôt (A-1).
+    const a1 = snapA1;
+    if(ok && a1 && a1.nb_heures && a1.indice_now_eur_mwh){
+      const ecart = (g.indice_now_eur_mwh - a1.indice_now_eur_mwh) / Math.abs(a1.indice_now_eur_mwh) * 100;
+      const up = ecart >= 0;
+      setHtml("indice-30j-pill", `<span class="pill ${up ? "up" : "down"}">${up ? "&#9650; +" : "&#9660; −"}${fmt(Math.abs(ecart), 1)}&#37;<span class="pill-cap">vs A-1</span></span>`);
+    }else{
+      setHtml("indice-30j-pill", "");
+    }
+    setText("indice-30j-sub", ok ? `économie de l'arbitrage vs gaz seul sur ${g.nb_heures} h` : "");
+    setHtml("cout-elec", ok ? unite(g.cout_elec_eur_mwh, 1) : "—");
+    setHtml("cout-gaz", ok ? unite(g.cout_gaz_eur_mwh, 1) : "—");
+    setHtml("cout-arb", ok ? unite(g.cout_arbitrage_eur_mwh, 1) : "—");
+  }
+
+  // Tuile "coût du MWh de chaleur" : valeur du moins cher maintenant, dans la
+  // couleur de la source gagnante.
+  function rendreTuile(m){
+    const t = document.getElementById("tile-cout");
+    t.classList.remove("elec", "gaz");
+    if(!m){ setHtml("tile-cout-val", "—"); setText("tile-cout-lbl", "Coût du MWh de chaleur maintenant"); return; }
+    const gagnant = m.elec < m.gaz ? "elec" : "gaz";
+    t.classList.add(gagnant);
+    setText("tile-cout-lbl", `Coût du MWh maintenant · ${gagnant === "elec" ? "élec" : "gaz"}`);
+    setHtml("tile-cout-val", unite(Math.min(m.elec, m.gaz), 1));
+  }
+
+  let dernier = null;
+
+  function rendre(){
+    const maintenant = new Date();
+    const snap = dernier || {};
+    const aujourdhui = `${maintenant.getFullYear()}-${String(maintenant.getMonth()+1).padStart(2,"0")}-${String(maintenant.getDate()).padStart(2,"0")}`;
+    // Données d'un autre jour que le jour courant (ex. repli sur l'historique
+    // du repo tant que le KV n'est pas alimenté) : on affiche le jour des
+    // données, sans repère "maintenant" ni tuile "maintenant".
+    const historique = !!snap.jour_iso && snap.jour_iso !== aujourdhui;
+    if(historique){
+      setHtml("clock-jour", `${fmtDateJour(new Date(snap.jour_iso + "T12:00:00"))} · <strong>données historiques</strong>`);
+    }else{
+      setHtml("clock-jour", `${fmtDateJour(maintenant)} · <strong>${fmtHeure(maintenant)}</strong>`);
+    }
+    // "Maintenant" recalculé côté client depuis la série du jour : reste
+    // juste entre deux rafraîchissements serveur.
+    const hNow = historique ? null : (snap.jour || []).find(p => p.h === maintenant.getHours());
+    rendreTuile(hNow || null);
+    rendreStats(snap.glissant_30j, snap.glissant_30j_a1);
+    dessineJour(snap.jour, maintenant, historique);
+    dessineHistorique(snap.indice_now_mensuel || []);
+  }
+
+  async function charger(){
+    try{
+      const r = await fetch("/api/chaleur", {cache:"no-store"});
+      if(r.ok) dernier = await r.json();
+    }catch(e){
+      console.warn("Données chaudières indisponibles :", e);
+    }
+    rendre();
+  }
+
+  const btn = document.getElementById("btn-fullscreen");
+  btn.addEventListener("click", () => {
+    if(document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{});
+  });
+  document.addEventListener("fullscreenchange", () => {
+    btn.textContent = document.fullscreenElement ? "⤫" : "⛶";
+  });
+
+  let idResize = null;
+  window.addEventListener("resize", () => { clearTimeout(idResize); idResize = setTimeout(rendre, 150); });
+
+  charger();
+  setInterval(charger, REFRESH_MS);
+  setInterval(rendre, LOCAL_TICK_MS);
+})();
+</script>
+</body>
+</html>

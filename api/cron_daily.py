@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 
-from _lib import fetchers, store
+from _lib import chaleur_store, fetchers, kv, store
 from _lib.rte_client import charge_identifiants_rte
 
 
@@ -155,4 +155,17 @@ def executer(jours_avant: int = 1) -> dict:
     maintenant = pd.Timestamp.now(tz="Europe/Paris")
     debut = maintenant.normalize() - pd.Timedelta(days=jours_avant)
     fin = maintenant.normalize() + pd.Timedelta(days=2)
-    return fetch_et_stocke_fenetre(debut, fin)
+    resultats = fetch_et_stocke_fenetre(debut, fin)
+
+    # Dashboard Chaudieres electriques : couts horaires depuis raw:da (juste
+    # rafraichi ci-dessus) + PEG du jour, archivage du mois clos, snapshot.
+    # Volontairement hors fetch_et_stocke_fenetre (reutilise par backfill.py).
+    try:
+        resultats["chaleur_heures"] = chaleur_store.maj_horaire(
+            kv.get_json("raw:da", []), kv.get_json("raw:afrr_up_capa", []), kv.get_json("raw:afrr_down_capa", [])
+        )
+        resultats["chaleur_mois_archive"] = chaleur_store.maj_mois_clos()
+        chaleur_store.calcule_et_sauvegarde_snapshot()
+    except Exception:
+        resultats["chaleur"] = f"echec: {traceback.format_exc(limit=2)}"
+    return resultats
