@@ -2,7 +2,8 @@
 les calculs).
 
 Cles :
-- `hist_chaleur:horaire` : {"YYYY-MM-DDTHH": {"elec","gaz"}} EUR/MWh thermique,
+- `hist_chaleur:horaire` : {"YYYY-MM-DDTHH": {"elec","gaz","elec_net","gaz_net"}}
+  EUR/MWh thermique (bruts pour les courbes, nets de reserve aFRR pour l'indice),
   borne a HORAIRE_JOURS -- alimente par cron_daily depuis raw:da (moyenne
   horaire) et le PEG de hist:noos_peg, ou par backfill_chaleur.
 - `hist_chaleur:indice_now` : {"YYYY-MM": ligne mensuelle}, PERMANENT --
@@ -86,11 +87,12 @@ def _prune_horaire(horaire: dict) -> dict:
     return {k: v for k, v in horaire.items() if k >= limite}
 
 
-def maj_horaire(points_da_15min: list[dict]) -> int:
-    """Calcule les couts horaires depuis des points DA 15 min et les fusionne
-    dans hist_chaleur:horaire (ecrase les heures deja connues). Renvoie le
-    nombre d'heures ecrites."""
-    nouvelles = chaleur.horaire_depuis_15min(points_da_15min, peg_par_jour_depuis_hist())
+def maj_horaire(points_da_15min: list[dict], rs_hausse: list[dict] | None = None, rs_baisse: list[dict] | None = None) -> int:
+    """Calcule les couts horaires depuis des points DA 15 min (+ prix aFRR
+    capacite hausse/baisse pour les champs nets) et les fusionne dans
+    hist_chaleur:horaire (ecrase les heures deja connues). Renvoie le nombre
+    d'heures ecrites."""
+    nouvelles = chaleur.horaire_depuis_15min(points_da_15min, peg_par_jour_depuis_hist(), rs_hausse, rs_baisse)
     horaire = kv.get_json(CLE_HORAIRE, {})
     horaire.update(nouvelles)
     kv.set_json(CLE_HORAIRE, _prune_horaire(horaire))
@@ -133,7 +135,6 @@ def calcule_et_sauvegarde_snapshot() -> dict:
         "glissant_30j": chaleur.agreger(fenetre),
         "indice_now_mensuel": [indice[m] for m in sorted(indice)],
         "co2_eur_t": chaleur.CO2_EUR_T,
-        "avec_reserve": chaleur.AVEC_RESERVE,
     }
     kv.set_json("chaleur:latest", snapshot)
     return snapshot

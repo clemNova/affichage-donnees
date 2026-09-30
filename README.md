@@ -168,10 +168,13 @@ Code : `api/_lib/chaleur.py` (calculs purs, paramètres, TURPE),
   `cron_15min` et `cron_daily`.
 
 **Hypothèses live** (différences avec le script de référence) :
-- **Sans réserve aFRR** (`chaleur.AVEC_RESERVE = False`) — à passer à `True` et
-  à alimenter `prix_rs_hausse/baisse` (EUR/MW/h, unité à vérifier) pour la
-  réintégrer. Les mois du CSV historique, eux, sont calculés **avec** réserve :
-  légère rupture de série à partir de septembre 2026.
+- **Services système (aFRR capacité)** : inclus dans l'**Indice NOW** (30 j
+  glissants et mensuel, champs `elec_net`/`gaz_net`, cohérent avec le CSV
+  historique) mais **pas** dans les courbes de coût de revient du jour (champs
+  bruts `elec`/`gaz`). Hausse déduite côté élec, baisse côté gaz ; heure sans
+  prix = 0. Prix RTE natifs (EUR/MW/15 min, `raw:afrr_*_capa`) × 4 =
+  EUR/MW/h du CSV (`chaleur.AFRR_EUR_MW_H_PAR_UNITE_RTE`, calé sur l'ordre de
+  grandeur des gains journaliers — à reverifier sur données réelles).
 - **CO2 constant** (`chaleur.CO2_EUR_T = 79`, dernière valeur du CSV, pas de
   pipeline live) — à mettre à jour à la main.
 - **PEG** : un prix par jour. Jusqu'au 27/08/2026, celui du CSV d'export ;

@@ -12,6 +12,7 @@ dans hist:noos_peg -- inutile d'appeler /api/backfill_peg avant. Un jour sans
 PEG connu (NOOS ne renvoie rien, week-end...) prend la valeur du dernier jour
 connu (chaleur_store.peg_par_jour_depuis_hist).
 
+L'aFRR capacite (services systeme, RTE) est recuperee dans les memes fenetres.
 Fenetres de 5 jours (troncature silencieuse d'ENTSO-E sur les fenetres larges,
 cf. backfill.py), recuperees en parallele (timeout Vercel Hobby 60s).
 
@@ -30,16 +31,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd
 
 from _lib import chaleur_store, fetchers, kv
+from _lib.rte_client import charge_identifiants_rte
 
 CHUNK_JOURS = 5
 
 
-def _fetch(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
+def _fetch(debut: pd.Timestamp, fin: pd.Timestamp, identifiants) -> dict:
+    """DA ENTSO-E + aFRR capacite RTE (services systeme) d'une fenetre."""
     etiquette = f"{debut.date()}..{fin.date()}"
     try:
-        return {"fenetre": etiquette, "points": fetchers.fetch_day_ahead(debut, fin)}
+        resultat = {"fenetre": etiquette, "points": fetchers.fetch_day_ahead(debut, fin), "up": [], "down": []}
     except Exception:
         return {"fenetre": etiquette, "erreur": traceback.format_exc(limit=2)}
+    try:
+        capa = fetchers.fetch_afrr_capacite(debut, fin, identifiants)
+        resultat["up"], resultat["down"] = capa["UP"], capa["DOWN"]
+    except Exception:
+        resultat["erreur_afrr"] = traceback.format_exc(limit=2)
+    return resultat
 
 
 def _fetch_peg(jour: pd.Timestamp) -> tuple[str, float | None, str | None]:
@@ -79,15 +88,26 @@ def executer() -> dict:
         fenetres.append((curseur, min(curseur + pd.Timedelta(days=CHUNK_JOURS), fin_globale)))
         curseur = fenetres[-1][1]
 
-    with ThreadPoolExecutor(max_workers=4) as executeur:
-        resultats = list(executeur.map(lambda f: _fetch(*f), fenetres))
+    try:
+        identifiants = charge_identifiants_rte("BALANCING_CAPACITY")
+    except Exception:
+        identifiants = None  # aFRR : erreur reportee par fenetre, heures nettes = brutes
 
-    points = [p for r in resultats for p in r.get("points", [])]
+    with ThreadPoolExecutor(max_workers=6) as executeur:
+        resultats = list(executeur.map(lambda f: _fetch(*f, identifiants), fenetres))
+
+    def cumul(cle):
+        return [p for r in resultats for p in r.get(cle, [])]
+
     return {
         "peg": detail_peg,
-        "heures_ecrites": chaleur_store.maj_horaire(points),
+        "heures_ecrites": chaleur_store.maj_horaire(cumul("points"), cumul("up"), cumul("down")),
         "detail_par_chunk": [
-            {"fenetre": r["fenetre"], **({"n": len(r["points"])} if "points" in r else {"erreur": r["erreur"]})}
+            {
+                "fenetre": r["fenetre"],
+                **({"n_da": len(r["points"]), "n_afrr_up": len(r["up"]), "n_afrr_down": len(r["down"])} if "points" in r else {}),
+                **{k: r[k] for k in ("erreur", "erreur_afrr") if k in r},
+            }
             for r in resultats
         ],
     }

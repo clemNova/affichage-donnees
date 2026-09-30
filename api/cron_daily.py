@@ -161,7 +161,9 @@ def executer(jours_avant: int = 1) -> dict:
     # rafraichi ci-dessus) + PEG du jour, archivage du mois clos, snapshot.
     # Volontairement hors fetch_et_stocke_fenetre (reutilise par backfill.py).
     try:
-        resultats["chaleur_heures"] = chaleur_store.maj_horaire(kv.get_json("raw:da", []))
+        resultats["chaleur_heures"] = chaleur_store.maj_horaire(
+            kv.get_json("raw:da", []), kv.get_json("raw:afrr_up_capa", []), kv.get_json("raw:afrr_down_capa", [])
+        )
         resultats["chaleur_mois_archive"] = chaleur_store.maj_mois_clos()
         chaleur_store.calcule_et_sauvegarde_snapshot()
     except Exception:

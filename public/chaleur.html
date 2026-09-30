@@ -163,7 +163,7 @@
     <section class="row-haut">
       <div class="card accent-jour">
         <div class="chart-head">
-          <span class="section-title"><em>Coût de revient</em> d'un MWh de chaleur<span class="section-sub">sur la journée, €/MWh th</span></span>
+          <span class="section-title"><em>Coût de revient</em> d'un MWh de chaleur<span class="section-sub">sur la journée, hors services système, €/MWh th</span></span>
           <span class="clock-mini" id="clock-jour">—</span>
         </div>
         <div class="chart-wrap" id="chart-jour"></div>
@@ -215,7 +215,7 @@
     <section class="row-bas">
       <div class="card accent-now" style="flex:1">
         <div class="chart-head">
-          <span class="section-title"><em>Indice NOW</em> — historique mensuel<span class="section-sub">économie de l'arbitrage élec/gaz vs gaz seul, €/MWh th, mis à jour à la clôture de chaque mois</span></span>
+          <span class="section-title"><em>Indice NOW</em> — historique mensuel<span class="section-sub">économie de l'arbitrage élec/gaz vs gaz seul, services système inclus, €/MWh th, mis à jour à la clôture de chaque mois</span></span>
         </div>
         <div class="chart-wrap" id="chart-now"></div>
       </div>
@@ -425,7 +425,7 @@
 
   function rendreStats(g){
     const ok = g && g.nb_heures;
-    setText("mois-sub", ok ? `${g.nb_heures} h` : "");
+    setText("mois-sub", ok ? `${g.nb_heures} h · services système inclus` : "");
     setText("h-elec", ok ? String(g.nb_heures_elec) : "—");
     setText("h-gaz", ok ? String(g.nb_heures_gaz) : "—");
     setText("h-elec-pct", ok ? `${fmt(g.nb_heures_elec / g.nb_heures * 100, 0)} % du temps` : "");
