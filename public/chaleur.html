@@ -216,6 +216,11 @@
       <div class="card accent-now" style="flex:1">
         <div class="chart-head">
           <span class="section-title"><em>Indice NOW</em> — historique mensuel<span class="section-sub">économie de l'arbitrage élec/gaz vs gaz seul, services système inclus, €/MWh th, mis à jour à la clôture de chaque mois</span></span>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-swatch zone" style="background:var(--elec)"></span>Part d'heures en élec</span>
+            <span class="legend-item"><span class="legend-swatch zone" style="background:var(--gaz)"></span>Part d'heures en gaz</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#fff"></span>Indice NOW</span>
+          </div>
         </div>
         <div class="chart-wrap" id="chart-now"></div>
       </div>
@@ -261,7 +266,7 @@
   }
   // Échelle Y : `zero` force la base à 0 (indice >= 0), sinon base arrondie
   // sous le minimum pour que l'écart entre les 2 courbes reste lisible.
-  function echelleY(valeurs, H, zero){
+  function echelleY(valeurs, H, zero, padB = PAD_B){
     const v = valeurs.filter(x => x !== null && x !== undefined && !Number.isNaN(x));
     let lo = v.length ? Math.min(...v) : 0, hi = v.length ? Math.max(...v) : 1;
     if(zero) lo = Math.min(lo, 0);
@@ -270,7 +275,7 @@
     lo = Math.floor(lo / pas) * pas; hi = Math.ceil(hi / pas) * pas;
     const ticks = [];
     for(let t = lo; t <= hi + pas * .5; t += pas) ticks.push(Math.round(t / pas) * pas);
-    const plotH = H - PAD_T - PAD_B;
+    const plotH = H - PAD_T - padB;
     return { ticks, y: t => PAD_T + plotH - ((t - lo) / (hi - lo)) * plotH };
   }
 
@@ -295,11 +300,11 @@
     u.textContent = unit;
     svg.appendChild(u);
   }
-  function infobulle(container, svg, W, H, texteAt){
+  function infobulle(container, svg, W, H, texteAt, padB = PAD_B){
     const tip = document.createElement("div");
     tip.className = "crosshair-tip";
     container.appendChild(tip);
-    const guide = svgEl("line", {y1:PAD_T, y2:H-PAD_B, stroke:"var(--text-faint)", "stroke-width":1, opacity:0});
+    const guide = svgEl("line", {y1:PAD_T, y2:H-padB, stroke:"var(--text-faint)", "stroke-width":1, opacity:0});
     svg.appendChild(guide);
     svg.addEventListener("mousemove", e => {
       const r = svg.getBoundingClientRect();
@@ -378,7 +383,10 @@
     });
   }
 
-  // --- Graphe du bas : Indice NOW mensuel, tout l'historique. ---
+  // --- Graphe du bas : Indice NOW mensuel, tout l'historique. Chaque mois est
+  // une colonne pleine hauteur : vert en bas = part d'heures en élec, orange
+  // au-dessus = part d'heures en gaz (pourcentage d'heures élec sous la
+  // colonne) ; la ligne blanche est l'indice du mois. ---
   function dessineHistorique(lignes){
     const cont = document.getElementById("chart-now");
     const {svg, W, H} = creeSvg(cont);
@@ -388,39 +396,53 @@
       svg.appendChild(t);
       return;
     }
-    const padR = 90; // place pour l'étiquette du dernier point, à droite de la courbe
+    const padR = 90; // place pour l'étiquette du dernier point, à droite
+    const padB = 44; // pourcentages d'heures + années sous l'axe
     const plotW = W - PAD_L - padR;
-    const n = lignes.length;
-    const x = i => PAD_L + (n > 1 ? i / (n - 1) : .5) * plotW;
-    const ech = echelleY(lignes.map(l => l.indice_now_eur_mwh), H, true);
-    grilleY(svg, W, ech, "€/MWh th", padR);
-    svg.appendChild(svgEl("line", {class:"axis-line", x1:PAD_L, x2:W-padR, y1:H-PAD_B, y2:H-PAD_B}));
-    // Un repère par année (janvier).
+    const n = lignes.length, pas = plotW / n;
+    const x = i => PAD_L + (i + .5) * pas;
+    const ech = echelleY(lignes.map(l => l.indice_now_eur_mwh), H, true, padB);
+    const yHaut = ech.y(ech.ticks[ech.ticks.length - 1]), yBas = ech.y(0);
+
+    // Colonnes en fond (sous la grille pour qu'elle reste lisible).
     lignes.forEach((l, i) => {
-      if(!l.annee_mois.endsWith("-01")) return;
-      const t = svgEl("text", {class:"tick-label", x:x(i).toFixed(1), y:H-6, "text-anchor":"middle"});
-      t.textContent = l.annee_mois.slice(0,4);
-      svg.appendChild(t);
+      const hElec = (yBas - yHaut) * l.part_heures_elec;
+      const gauche = (PAD_L + i * pas).toFixed(1), largeur = (pas + .5).toFixed(1);
+      svg.appendChild(svgEl("rect", {x:gauche, width:largeur, y:yHaut.toFixed(1), height:(yBas - yHaut - hElec).toFixed(1), fill:ORANGE, opacity:.35}));
+      svg.appendChild(svgEl("rect", {x:gauche, width:largeur, y:(yBas - hElec).toFixed(1), height:hElec.toFixed(1), fill:VERT, opacity:.45}));
+    });
+
+    grilleY(svg, W, ech, "€/MWh th", padR);
+    svg.appendChild(svgEl("line", {class:"axis-line", x1:PAD_L, x2:W-padR, y1:yBas.toFixed(1), y2:yBas.toFixed(1)}));
+    // Part d'heures élec (%) sous chaque colonne, et années en janvier.
+    lignes.forEach((l, i) => {
+      const pct = svgEl("text", {class:"tick-label", x:x(i).toFixed(1), y:H-24, "text-anchor":"middle", style:"fill:"+VERT, "font-weight":"700", "font-size":Math.min(10, pas * .42).toFixed(1)});
+      pct.textContent = Math.round(l.part_heures_elec * 100) + "%";
+      svg.appendChild(pct);
+      if(l.annee_mois.endsWith("-01")){
+        const an = svgEl("text", {class:"tick-label", x:(PAD_L + i * pas).toFixed(1), y:H-6, "text-anchor":"start", "font-weight":"700"});
+        an.textContent = l.annee_mois.slice(0,4);
+        svg.appendChild(an);
+      }
     });
 
     const pts = lignes.map((l, i) => [x(i), ech.y(l.indice_now_eur_mwh)]);
-    const ligne = pts.map((p, i) => `${i ? "L" : "M"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
-    svg.appendChild(svgEl("path", {d:`${ligne} L ${pts[n-1][0].toFixed(1)} ${ech.y(0).toFixed(1)} L ${pts[0][0].toFixed(1)} ${ech.y(0).toFixed(1)} Z`, fill:CLAIR, opacity:.12, stroke:"none"}));
-    svg.appendChild(svgEl("path", {d:ligne, fill:"none", stroke:CLAIR, "stroke-width":2.5, "stroke-linecap":"round", "stroke-linejoin":"round"}));
+    svg.appendChild(svgEl("path", {d:pts.map((p, i) => `${i ? "L" : "M"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" "), fill:"none", stroke:"#ffffff", "stroke-width":2.5, "stroke-linecap":"round", "stroke-linejoin":"round"}));
+    pts.forEach(([px, py]) => svg.appendChild(svgEl("circle", {cx:px.toFixed(1), cy:py.toFixed(1), r:3.5, fill:"#ffffff", stroke:"#2a78d6", "stroke-width":1.5})));
 
     const dern = lignes[n-1], [dx, dy] = pts[n-1];
-    svg.appendChild(svgEl("circle", {cx:dx.toFixed(1), cy:dy.toFixed(1), r:5, fill:CLAIR, stroke:"var(--bg)", "stroke-width":2}));
-    const lab = svgEl("text", {class:"point-label", x:(dx+10).toFixed(1), y:(dy+4).toFixed(1), "text-anchor":"start"});
+    const lab = svgEl("text", {class:"point-label", x:(dx+12).toFixed(1), y:(dy+4).toFixed(1), "text-anchor":"start"});
     lab.textContent = `${fmt(dern.indice_now_eur_mwh,1)} €/MWh`;
     svg.appendChild(lab);
 
     infobulle(cont, svg, W, H, px => {
-      const i = Math.max(0, Math.min(n-1, Math.round(((px - PAD_L) / plotW) * (n-1))));
+      const i = Math.floor((px - PAD_L) / pas);
+      if(i < 0 || i >= n) return null;
       const l = lignes[i];
       const [an, mo] = l.annee_mois.split("-");
       const mois = new Date(+an, +mo-1, 1).toLocaleDateString("fr-FR", {month:"long", year:"numeric"});
-      return {x:x(i), html:`<div>${mois.charAt(0).toUpperCase()+mois.slice(1)}</div><span class="k">Indice NOW :</span> ${fmt(l.indice_now_eur_mwh,1)} €/MWh<br><span class="k">Heures en élec :</span> ${fmt(l.part_heures_elec*100,0)} %`};
-    });
+      return {x:x(i), html:`<div>${mois.charAt(0).toUpperCase()+mois.slice(1)}</div><span class="k">Indice NOW :</span> ${fmt(l.indice_now_eur_mwh,1)} €/MWh<br><span class="k">Heures en élec :</span> ${fmt(l.part_heures_elec*100,0)} %<br><span class="k">Heures en gaz :</span> ${fmt((1-l.part_heures_elec)*100,0)} %`};
+    }, padB);
   }
 
   function rendreStats(g){
