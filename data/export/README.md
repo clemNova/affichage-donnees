@@ -3,6 +3,19 @@
 Dossier autonome, pret a etre copie dans un autre repo pour affichage de
 l'historique mensuel de l'indice NOW (et recalcul complet si besoin).
 
+## Correction des colonnes aFRR (2026)
+
+Dans le CSV horaire d'origine, `prix_rs_hausse` et `prix_rs_baisse` sont
+**inversés à partir du 01/01/2026 00:00 (heure de Paris)** par rapport à
+l'API RTE / ENTSO-E (vérifié heure par heure : « hausse » = série UP, « baisse »
+= série DOWN ; jusqu'au 31/12/2025 le fichier était dans le bon sens). Les deux
+colonnes ont donc été **échangées pour les lignes ≥ 2026-01-01** dans
+`donnees_EPEX_PEG_CO2_RTE_2021-2026_horaire.csv`, puis les fichiers mensuels et
+le PNG ont été régénérés (mois modifiés : 2026-01 à 2026-08 ; 2021-2025
+inchangés). **À ne pas refaire** si la source est corrigée ; en revanche, tout
+nouvel export depuis le repo « Pricer Bess » doit recevoir la même correction
+tant que la source n'est pas réparée.
+
 ## Contenu
 
 - `calcul_indice_now.py` : script de calcul (copie autonome, chemins

@@ -168,6 +168,10 @@ Code : `api/_lib/chaleur.py` (calculs purs, paramètres, TURPE),
   `cron_15min` et `cron_daily`.
 
 **Hypothèses live** (différences avec le script de référence) :
+- **CSV horaire** : ses colonnes aFRR (`prix_rs_hausse`/`prix_rs_baisse`) étaient
+  inversées depuis le 01/01/2026 (vs API RTE/ENTSO-E) et ont été corrigées, cf.
+  `data/export/README.md` ; il faut rappeler `/api/importer_indice_now` pour
+  mettre à jour les mois 2026 dans le KV.
 - **Services système (aFRR capacité)** : inclus dans l'**Indice NOW** (30 j
   glissants et mensuel, champs `elec_net`/`gaz_net`, cohérent avec le CSV
   historique) mais **pas** dans les courbes de coût de revient du jour (champs
