@@ -9,6 +9,7 @@ liste de dict au lieu d'un DataFrame ecrit sur un CSV.
 from __future__ import annotations
 
 import pandas as pd
+import requests
 from entsoe.exceptions import NoMatchingDataError
 
 from . import noos_client
@@ -166,23 +167,33 @@ def fetch_peg_forward(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list[
 
 
 def fetch_peg_historique_jour(jour: pd.Timestamp) -> float | None:
-    """Prix PEG FIXE (spot) tel que publie a la date `jour`, pour livraison
-    ce meme jour -- necessite le parametre `published_at` (snapshot de la
-    courbe A CETTE DATE), contrairement a fetch_peg_forward/fetch_peg_spot
-    qui interrogent la courbe LIVE (= aujourd'hui). Constate empiriquement :
-    start_at/end_at seuls sur une fenetre passee, sans published_at, ne
-    renvoient AUCUN point -- la courbe live de NOOS ne conserve pas les
-    livraisons passees, published_at est indispensable pour l'historique
-    (cf. echange utilisateur / doc NOOS fournie pour la courbe elec PWRTE,
-    meme mecanisme pour PEG). Renvoie None si NOOS ne renvoie rien pour ce jour."""
-    params = {
-        "published_at": jour.isoformat(),
-        "start_at": jour.isoformat(),
-        "end_at": (jour + pd.Timedelta(days=1)).isoformat(),
-    }
-    donnees = noos_client.appelle_api_noos_peg(params)
-    points = donnees.get("time_series") or []
-    return float(points[0]["value"]) if points else None
+    """Prix PEG (EUR/MWh PCS) de la livraison du `jour` (naif), lu dans un
+    instantane PASSE de la courbe NOOS (`published_at`) -- la courbe live ne
+    conserve pas les livraisons passees.
+
+    NOOS ne garde qu'UN instantane par jour, a minuit (toute autre heure :
+    "Curve snapshot not found"), et l'instantane d'un jour J ouvre en general
+    sur J+1 (un jour ouvre, le prix de J a ete fixe la veille) -- constate :
+    published_at=J ne renvoie le prix de J que pour les samedis et les 2-3
+    derniers jours. On lit donc d'abord l'instantane de J (valeur la plus
+    recente quand elle existe, comme la courbe live), puis celui de J-1 (le
+    prix de J tel que fixe la veille). None si aucun des deux ne contient J
+    (ex. lundi : l'instantane de dimanche ne l'a pas)."""
+    cible = jour.date().isoformat()
+    for publie in (jour, jour - pd.Timedelta(days=1)):
+        params = {
+            "published_at": publie.isoformat(),
+            "start_at": jour.isoformat(),
+            "end_at": (jour + pd.Timedelta(days=1)).isoformat(),
+        }
+        try:
+            points = noos_client.appelle_api_noos_peg(params).get("time_series") or []
+        except requests.HTTPError:
+            continue  # instantane absent pour cette date
+        for p in points:
+            if p["timestamp"][:10] == cible:
+                return float(p["value"])
+    return None
 
 
 def fetch_elec_forward_base_peak(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> dict:
