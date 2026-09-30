@@ -25,10 +25,12 @@ from http.server import BaseHTTPRequestHandler
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "api"))
 
 import backfill
+import backfill_chaleur
 import backfill_peg
 import cron_15min
 import cron_daily
 import importer_historique_mensuel
+import importer_indice_now
 from _lib import kv
 from _lib.auth import autorise
 from _lib.http_utils import refuser, repondre
@@ -47,6 +49,8 @@ MODULES_PROTEGES = {
     "/api/backfill_historique": backfill,
     "/api/backfill_peg": backfill_peg,
     "/api/importer_historique_mensuel": importer_historique_mensuel,
+    "/api/backfill_chaleur": backfill_chaleur,
+    "/api/importer_indice_now": importer_indice_now,
 }
 
 
@@ -58,6 +62,13 @@ class handler(BaseHTTPRequestHandler):
             try:
                 snapshot = kv.get_json("kpis:latest", {})
                 repondre(self, 200, snapshot)
+            except Exception as erreur:
+                repondre(self, 500, {"erreur": str(erreur)})
+            return
+
+        if chemin == "/api/chaleur":
+            try:
+                repondre(self, 200, kv.get_json("chaleur:latest", {}))
             except Exception as erreur:
                 repondre(self, 500, {"erreur": str(erreur)})
             return

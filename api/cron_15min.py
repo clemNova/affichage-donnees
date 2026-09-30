@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pandas as pd
 
-from _lib import fetchers, store
+from _lib import chaleur_store, fetchers, store
 from _lib.rte_client import charge_identifiants_rte
 
 
@@ -33,4 +33,8 @@ def executer() -> dict:
 
     snapshot = store.calcule_et_sauvegarde_snapshot()
     resultat["snapshot"] = snapshot
+    try:
+        chaleur_store.calcule_et_sauvegarde_snapshot()
+    except Exception:
+        resultat["chaleur"] = f"echec: {traceback.format_exc(limit=2)}"
     return resultat
