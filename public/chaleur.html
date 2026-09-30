@@ -148,7 +148,7 @@
   <header>
     <div class="header-left">
       <img class="logo-novawatt-header" src="logo-novawatt.svg" alt="NovaWatt Energies" onerror="this.style.display='none'">
-      <h1>Dashboard Chaudières électriques<span class="subhead">Coût de revient de la chaleur élec vs gaz, Indice NOW — HTB1/LU</span></h1>
+      <h1>Dashboard Chaudières électriques<span class="subhead">Coût de revient de la chaleur élec vs gaz, Indice NoW — HTB1/LU</span></h1>
     </div>
     <div class="header-right">
       <nav class="dash-nav">
@@ -198,7 +198,7 @@
             <span class="sub" id="h-gaz-pct"></span>
           </div>
           <div class="tile info">
-            <span class="lbl">Indice NOW 30 j</span>
+            <span class="lbl">Indice NoW 30 j</span>
             <span class="big" id="indice-30j">—</span>
             <span class="sub">économie de l'arbitrage vs gaz seul</span>
           </div>
@@ -217,11 +217,11 @@
     <section class="row-bas">
       <div class="card accent-now" style="flex:1">
         <div class="chart-head">
-          <span class="section-title"><em>Indice NOW</em> — historique mensuel<span class="section-sub">gain de l'arbitrage élec/gaz vs gaz seul pour 1 MW, services système inclus, €/MW/mois, mis à jour à la clôture de chaque mois</span></span>
+          <span class="section-title"><em>Indice NoW</em> — historique mensuel<span class="section-sub">gain de l'arbitrage élec/gaz vs gaz seul pour 1 MW, services système inclus, €/MW/mois, mis à jour à la clôture de chaque mois</span></span>
           <div class="legend">
             <span class="legend-item"><span class="legend-swatch zone" style="background:var(--elec)"></span>Part d'heures en élec</span>
             <span class="legend-item"><span class="legend-swatch zone" style="background:var(--gaz)"></span>Part d'heures en gaz</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#fff"></span>Indice NOW</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#fff"></span>Indice NoW</span>
           </div>
         </div>
         <div class="chart-wrap" id="chart-now"></div>
@@ -385,7 +385,7 @@
     });
   }
 
-  // --- Graphe du bas : Indice NOW mensuel, tout l'historique. Chaque mois est
+  // --- Graphe du bas : Indice NoW mensuel, tout l'historique. Chaque mois est
   // une colonne pleine hauteur : vert en bas = part d'heures en élec, orange
   // au-dessus = part d'heures en gaz (pourcentage d'heures élec sous la
   // colonne) ; la ligne blanche est l'indice du mois. ---
@@ -450,7 +450,7 @@
       const l = lignes[i];
       const [an, mo] = l.annee_mois.split("-");
       const mois = new Date(+an, +mo-1, 1).toLocaleDateString("fr-FR", {month:"long", year:"numeric"});
-      return {x:x(i), html:`<div>${mois.charAt(0).toUpperCase()+mois.slice(1)}</div><span class="k">Indice NOW :</span> ${fmt(l.gain_total_eur_mois,0)} €/MW/mois (${fmt(l.indice_now_eur_mwh,1)} €/MWh)<br><span class="k">Heures en élec :</span> ${fmt(l.part_heures_elec*100,0)} %<br><span class="k">Heures en gaz :</span> ${fmt((1-l.part_heures_elec)*100,0)} %`};
+      return {x:x(i), html:`<div>${mois.charAt(0).toUpperCase()+mois.slice(1)}</div><span class="k">Indice NoW :</span> ${fmt(l.gain_total_eur_mois,0)} €/MW/mois (${fmt(l.indice_now_eur_mwh,1)} €/MWh)<br><span class="k">Heures en élec :</span> ${fmt(l.part_heures_elec*100,0)} %<br><span class="k">Heures en gaz :</span> ${fmt((1-l.part_heures_elec)*100,0)} %`};
     }, padB);
   }
 
