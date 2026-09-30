@@ -207,7 +207,6 @@
             <span class="lbl">Indice NoW 30 j</span>
             <div class="big-row"><span class="big" id="indice-30j">—</span><span id="indice-30j-pill"></span></div>
             <span class="sub" id="indice-30j-sub">économie de l'arbitrage vs gaz seul</span>
-            <span class="sub" id="indice-30j-a1"></span>
           </div>
           <div class="tile info couts">
             <span class="lbl">Coût moyen du MWh de chaleur</span>
@@ -477,12 +476,10 @@
       const ecart = (g.indice_now_eur_mwh - a1.indice_now_eur_mwh) / Math.abs(a1.indice_now_eur_mwh) * 100;
       const up = ecart >= 0;
       setHtml("indice-30j-pill", `<span class="pill ${up ? "up" : "down"}">${up ? "&#9650; +" : "&#9660; −"}${fmt(Math.abs(ecart), 1)}&#37;<span class="pill-cap">vs A-1</span></span>`);
-      setText("indice-30j-a1", `Même période A-1 : −${fmt(a1.indice_now_eur_mwh * a1.nb_heures, 0)} €/MW`);
     }else{
       setHtml("indice-30j-pill", "");
-      setText("indice-30j-a1", "");
     }
-    setText("indice-30j-sub", ok ? `économie de l'arbitrage vs gaz seul sur ${g.nb_heures} h · ${fmt(g.indice_now_eur_mwh, 1)} €/MWh` : "");
+    setText("indice-30j-sub", ok ? `économie de l'arbitrage vs gaz seul sur ${g.nb_heures} h` : "");
     setHtml("cout-elec", ok ? unite(g.cout_elec_eur_mwh, 1) : "—");
     setHtml("cout-gaz", ok ? unite(g.cout_gaz_eur_mwh, 1) : "—");
     setHtml("cout-arb", ok ? unite(g.cout_arbitrage_eur_mwh, 1) : "—");
