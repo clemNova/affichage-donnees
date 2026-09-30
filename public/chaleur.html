@@ -163,7 +163,7 @@
     <section class="row-haut">
       <div class="card accent-jour">
         <div class="chart-head">
-          <span class="section-title"><em>Coût de revient</em> d'un MWh de chaleur<span class="section-sub">sur la journée, hors services système, €/MWh th</span></span>
+          <span class="section-title"><em>Coût de revient</em> d'un MWh de chaleur<span class="section-sub">hors services système, €/MWh th</span></span>
           <span class="clock-mini" id="clock-jour">—</span>
         </div>
         <div class="chart-wrap" id="chart-jour"></div>
@@ -317,7 +317,7 @@
   // par heure) ; zone entre les 2 courbes colorée heure par heure selon le
   // moins cher (vert = élec, orange = gaz). Escalier => aucun croisement en
   // cours d'heure, pas d'interpolation nécessaire. ---
-  function dessineJour(jour, maintenant){
+  function dessineJour(jour, maintenant, historique){
     const cont = document.getElementById("chart-jour");
     const elec = new Array(24).fill(null), gaz = new Array(24).fill(null);
     (jour || []).forEach(p => { elec[p.h] = p.elec; gaz[p.h] = p.gaz; });
@@ -362,7 +362,7 @@
 
     // Repère "maintenant" : ligne pointillée + un point sur chaque courbe.
     const hNow = maintenant.getHours(), fNow = hNow + maintenant.getMinutes() / 60;
-    if(elec[hNow] !== null){
+    if(!historique && elec[hNow] !== null){
       svg.appendChild(svgEl("line", {x1:x(fNow).toFixed(1), x2:x(fNow).toFixed(1), y1:PAD_T, y2:H-PAD_B, stroke:"var(--text-faint)", "stroke-width":1, "stroke-dasharray":"3,3", opacity:.6}));
       [[elec[hNow], VERT], [gaz[hNow], ORANGE]].forEach(([v, c]) => {
         svg.appendChild(svgEl("circle", {cx:x(fNow).toFixed(1), cy:ech.y(v).toFixed(1), r:5, fill:c, stroke:"var(--bg)", "stroke-width":2}));
@@ -452,14 +452,23 @@
 
   function rendre(){
     const maintenant = new Date();
-    setHtml("clock-jour", `${fmtDateJour(maintenant)} · <strong>${fmtHeure(maintenant)}</strong>`);
     const snap = dernier || {};
+    const aujourdhui = `${maintenant.getFullYear()}-${String(maintenant.getMonth()+1).padStart(2,"0")}-${String(maintenant.getDate()).padStart(2,"0")}`;
+    // Données d'un autre jour que le jour courant (ex. repli sur l'historique
+    // du repo tant que le KV n'est pas alimenté) : on affiche le jour des
+    // données, sans repère "maintenant" ni tuile "maintenant".
+    const historique = !!snap.jour_iso && snap.jour_iso !== aujourdhui;
+    if(historique){
+      setHtml("clock-jour", `${fmtDateJour(new Date(snap.jour_iso + "T12:00:00"))} · <strong>données historiques</strong>`);
+    }else{
+      setHtml("clock-jour", `${fmtDateJour(maintenant)} · <strong>${fmtHeure(maintenant)}</strong>`);
+    }
     // "Maintenant" recalculé côté client depuis la série du jour : reste
     // juste entre deux rafraîchissements serveur.
-    const hNow = (snap.jour || []).find(p => p.h === maintenant.getHours());
+    const hNow = historique ? null : (snap.jour || []).find(p => p.h === maintenant.getHours());
     rendreTuile(hNow || null);
     rendreStats(snap.glissant_30j);
-    dessineJour(snap.jour, maintenant);
+    dessineJour(snap.jour, maintenant, historique);
     dessineHistorique(snap.indice_now_mensuel || []);
   }
 

@@ -13,6 +13,7 @@ Cles :
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable
 
@@ -116,6 +117,48 @@ def maj_mois_clos() -> str | None:
     return mois
 
 
+CHEMIN_INDICE_JSON = os.path.join(os.path.dirname(CHEMIN_CSV_PEG), "indice_now_mensuel_HTB1_LU.json")
+_snapshot_csv: dict | None = None
+
+
+def snapshot_depuis_csv() -> dict:
+    """Snapshot de repli calcule depuis les fichiers du repo (data/export), sans
+    KV -- sert /api/chaleur tant que le KV n'a pas ete alimente (ex. preview
+    sans acces aux cron). Meme forme que calcule_et_sauvegarde_snapshot :
+    dernier jour complet du CSV en "jour", 720 dernieres heures pour le 30j
+    glissant, historique mensuel du JSON. Marque `source: "csv"` et
+    `jour_iso` pour que la page signale des donnees historiques. Le CSV
+    porte deja la reserve aFRR en EUR/MW/h (pas de conversion)."""
+    global _snapshot_csv
+    if _snapshot_csv is not None:
+        return _snapshot_csv
+    df = pd.read_csv(CHEMIN_CSV_PEG, usecols=["datetime_paris", "epex_eur_mwh", "peg_eur_mwh", "prix_rs_hausse", "prix_rs_baisse"])
+    df = df.dropna(subset=["epex_eur_mwh", "peg_eur_mwh"]).tail(FENETRE_HEURES + 48)
+    df["ts"] = pd.to_datetime(df["datetime_paris"], utc=True).dt.tz_convert("Europe/Paris").dt.tz_localize(None)
+    heures = {
+        r.ts: chaleur.couts_horaires(
+            r.ts, r.epex_eur_mwh, r.peg_eur_mwh,
+            0.0 if pd.isna(r.prix_rs_hausse) else r.prix_rs_hausse,
+            0.0 if pd.isna(r.prix_rs_baisse) else r.prix_rs_baisse,
+        )
+        for r in df.itertuples()
+    }
+    par_jour = pd.Series(list(heures)).dt.date.value_counts()
+    jour = max(j for j, n in par_jour.items() if n >= 23)  # dernier jour complet (23 h = passage a l'heure d'ete)
+    with open(CHEMIN_INDICE_JSON, encoding="utf-8") as f:
+        mensuel = sorted(json.load(f), key=lambda l: l["annee_mois"])
+    _snapshot_csv = {
+        "source": "csv",
+        "jour_iso": jour.isoformat(),
+        "jour": [{"h": t.hour, **v} for t, v in heures.items() if t.date() == jour],
+        "maintenant": None,
+        "glissant_30j": chaleur.agreger(list(heures.values())[-FENETRE_HEURES:]),
+        "indice_now_mensuel": mensuel,
+        "co2_eur_t": chaleur.CO2_EUR_T,
+    }
+    return _snapshot_csv
+
+
 def calcule_et_sauvegarde_snapshot() -> dict:
     maintenant = _maintenant()
     cle_maintenant = maintenant.strftime("%Y-%m-%dT%H")
@@ -130,6 +173,7 @@ def calcule_et_sauvegarde_snapshot() -> dict:
 
     snapshot = {
         "fetched_at": maintenant.isoformat(),
+        "jour_iso": jour_iso,
         "jour": jour,
         "maintenant": horaire.get(cle_maintenant),
         "glissant_30j": chaleur.agreger(fenetre),

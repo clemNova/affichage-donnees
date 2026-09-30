@@ -31,7 +31,7 @@ import cron_15min
 import cron_daily
 import importer_historique_mensuel
 import importer_indice_now
-from _lib import kv
+from _lib import chaleur_store, kv
 from _lib.auth import autorise
 from _lib.http_utils import refuser, repondre
 
@@ -68,7 +68,8 @@ class handler(BaseHTTPRequestHandler):
 
         if chemin == "/api/chaleur":
             try:
-                repondre(self, 200, kv.get_json("chaleur:latest", {}))
+                # Repli sur les fichiers du repo tant que le KV n'a pas ete alimente.
+                repondre(self, 200, kv.get_json("chaleur:latest", {}) or chaleur_store.snapshot_depuis_csv())
             except Exception as erreur:
                 repondre(self, 500, {"erreur": str(erreur)})
             return
