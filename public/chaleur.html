@@ -121,13 +121,15 @@
   .tile.heures .sub{font-size:.72rem;font-weight:500;opacity:.8}
   .tile.info{background:var(--panel-2);border:1px solid var(--line-muted)}
   .tile.info .lbl{font-family:var(--font-titres);font-size:.85rem;color:var(--text-faint)}
+  .tile.info.couts .lbl{font-size:.72rem}
   .tile.info .big{font-weight:700;font-size:3rem;line-height:1.05;font-variant-numeric:tabular-nums}
   .tile.info .big small{font-size:.42em;font-weight:500;color:var(--text-dim);margin-left:4px}
   .tile.info .sub{font-size:.78rem;color:var(--text-faint)}
-  .couts-rows{display:flex;flex-direction:column;gap:10px;margin-top:6px}
-  .cout-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.95rem;color:var(--text-dim)}
+  .couts-rows{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+  .cout-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.8rem;color:var(--text-dim)}
   .cout-row .nom{display:flex;align-items:center;gap:6px}
   .cout-row .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .cout-row .v small{font-size:.5em;font-weight:500;color:var(--text-dim);margin-left:3px}
   .cout-row .v{font-weight:700;font-size:1.5rem;color:var(--text);font-variant-numeric:tabular-nums}
   .dot.mix{background:linear-gradient(90deg,var(--elec) 50%,var(--gaz) 50%)}
 
@@ -200,7 +202,7 @@
             <span class="big" id="indice-30j">—</span>
             <span class="sub">économie de l'arbitrage vs gaz seul</span>
           </div>
-          <div class="tile info">
+          <div class="tile info couts">
             <span class="lbl">Coût moyen du MWh de chaleur</span>
             <div class="couts-rows">
               <div class="cout-row"><span class="nom"><span class="dot" style="background:var(--elec)"></span>Élec</span><span class="v" id="cout-elec">—</span></div>
@@ -397,7 +399,7 @@
       return;
     }
     const padR = 90; // place pour l'étiquette du dernier point, à droite
-    const padB = 24; // années sous l'axe
+    const padB = 38; // mois repères + années sous l'axe
     const plotW = W - PAD_L - padR;
     const n = lignes.length, pas = plotW / n;
     const x = i => PAD_L + (i + .5) * pas;
@@ -417,13 +419,19 @@
     // Part d'heures élec (%) au sommet de la barre verte, années sous l'axe.
     lignes.forEach((l, i) => {
       const yTop = yBas - (yBas - yHaut) * l.part_heures_elec;
-      const pct = svgEl("text", {class:"tick-label", x:x(i).toFixed(1), y:(yTop - 4).toFixed(1), "text-anchor":"middle", style:"fill:#ffffff", "font-weight":"700", "font-size":Math.min(10, pas * .42).toFixed(1)});
+      const pct = svgEl("text", {class:"tick-label", x:x(i).toFixed(1), y:(yTop - 4).toFixed(1), "text-anchor":"middle", style:"fill:#ffffff;fill-opacity:.6", "font-weight":"400", "font-size":Math.min(10, pas * .42).toFixed(1)});
       pct.textContent = Math.round(l.part_heures_elec * 100) + "%";
       svg.appendChild(pct);
-      if(l.annee_mois.endsWith("-01")){
+      const mois = +l.annee_mois.slice(5);
+      if(mois === 1){
         const an = svgEl("text", {class:"tick-label", x:(PAD_L + i * pas).toFixed(1), y:H-6, "text-anchor":"start", "font-weight":"700"});
         an.textContent = l.annee_mois.slice(0,4);
         svg.appendChild(an);
+      }else if(mois === 4 || mois === 7 || mois === 10){
+        // Quelques mois repères (avr., juil., oct.), pas tous.
+        const m = svgEl("text", {class:"tick-label", x:x(i).toFixed(1), y:H-22, "text-anchor":"middle"});
+        m.textContent = new Date(2000, mois - 1, 1).toLocaleDateString("fr-FR", {month:"short"});
+        svg.appendChild(m);
       }
     });
 
@@ -454,9 +462,9 @@
     setText("h-elec-pct", ok ? `${fmt(g.nb_heures_elec / g.nb_heures * 100, 0)} % du temps · services système inclus` : "");
     setText("h-gaz-pct", ok ? `${fmt(g.nb_heures_gaz / g.nb_heures * 100, 0)} % du temps · services système inclus` : "");
     setHtml("indice-30j", ok ? unite(g.indice_now_eur_mwh, 1) : "—");
-    setText("cout-elec", ok ? `${fmt(g.cout_elec_eur_mwh,1)} €/MWh` : "—");
-    setText("cout-gaz", ok ? `${fmt(g.cout_gaz_eur_mwh,1)} €/MWh` : "—");
-    setText("cout-arb", ok ? `${fmt(g.cout_arbitrage_eur_mwh,1)} €/MWh` : "—");
+    setHtml("cout-elec", ok ? unite(g.cout_elec_eur_mwh, 1) : "—");
+    setHtml("cout-gaz", ok ? unite(g.cout_gaz_eur_mwh, 1) : "—");
+    setHtml("cout-arb", ok ? unite(g.cout_arbitrage_eur_mwh, 1) : "—");
   }
 
   // Tuile "coût du MWh de chaleur" : valeur du moins cher maintenant, dans la
