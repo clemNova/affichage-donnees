@@ -461,7 +461,8 @@
     setText("h-gaz", ok ? String(g.nb_heures_gaz) : "—");
     setText("h-elec-pct", ok ? `${fmt(g.nb_heures_elec / g.nb_heures * 100, 0)} % du temps · services système inclus` : "");
     setText("h-gaz-pct", ok ? `${fmt(g.nb_heures_gaz / g.nb_heures * 100, 0)} % du temps · services système inclus` : "");
-    setHtml("indice-30j", ok ? unite(g.indice_now_eur_mwh, 1) : "—");
+    // Signe "−" : c'est une économie (un coût évité).
+    setHtml("indice-30j", ok ? "−" + unite(g.indice_now_eur_mwh, 1) : "—");
     setHtml("cout-elec", ok ? unite(g.cout_elec_eur_mwh, 1) : "—");
     setHtml("cout-gaz", ok ? unite(g.cout_gaz_eur_mwh, 1) : "—");
     setHtml("cout-arb", ok ? unite(g.cout_arbitrage_eur_mwh, 1) : "—");
