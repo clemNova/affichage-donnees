@@ -135,14 +135,23 @@ def fetch_afrr_activation(date_debut: pd.Timestamp, date_fin: pd.Timestamp, iden
 
 def fetch_peg_spot() -> list[dict]:
     """Prix spot PEG du jour (gaz naturel, EUR/MWh PCS) -- NOOS Energy publie
-    UN point par jour (pas de courbe 15 min comme RTE/ENTSO-E), on prend le
-    premier point de la reponse. Renvoie [] si NOOS ne renvoie aucun point."""
+    UN point par jour (pas de courbe 15 min comme RTE/ENTSO-E). BUG CORRIGE :
+    l'appel SANS parametres renvoie aussi plusieurs jours PASSES en tete de
+    liste (constate empiriquement : points[0] est HIER, pas aujourd'hui, cf.
+    echange utilisateur "l'appel a nous n'a pas ete fait" -- en realite
+    l'appel se faisait bien mais ecrivait la date d'hier). On cherche
+    maintenant explicitement le point dont la date correspond A AUJOURD'HUI
+    (Europe/Paris), pas le premier de la liste. Renvoie [] si NOOS ne
+    renvoie aucun point pour aujourd'hui."""
     donnees = noos_client.appelle_api_noos_peg()
     points = donnees.get("time_series") or []
     if not points:
         return []
-    premier = points[0]
-    return [{"ts": premier["timestamp"], "prix": float(premier["value"])}]
+    aujourdhui_iso = pd.Timestamp.now(tz="Europe/Paris").normalize().date().isoformat()
+    for point in points:
+        if point["timestamp"][:10] == aujourdhui_iso:
+            return [{"ts": point["timestamp"], "prix": float(point["value"])}]
+    return []
 
 
 def fetch_peg_forward(date_debut: pd.Timestamp, date_fin: pd.Timestamp) -> list[dict]:
