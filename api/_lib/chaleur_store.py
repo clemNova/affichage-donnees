@@ -117,6 +117,35 @@ def maj_mois_clos() -> str | None:
     return mois
 
 
+_ref_a1_cache: dict = {}
+
+
+def agregat_meme_periode_a1(fin: pd.Timestamp) -> dict | None:
+    """Agregat (chaleur.agreger, net de reserve) de la fenetre de 720 h qui se
+    terminait le meme jour/heure un an plus tot que `fin`, calcule depuis le
+    CSV horaire d'export (2021 -> 27/08/2026, reserve aFRR en EUR/MW/h deja
+    dedans). None si le CSV ne couvre pas cette periode. Met en cache par
+    heure de fin (relu a chaque snapshot 15 min sinon)."""
+    fin_a1 = fin.floor("h") - pd.DateOffset(years=1)
+    if fin_a1 in _ref_a1_cache:
+        return _ref_a1_cache[fin_a1]
+    df = pd.read_csv(CHEMIN_CSV_PEG, usecols=["datetime_paris", "epex_eur_mwh", "peg_eur_mwh", "prix_rs_hausse", "prix_rs_baisse"])
+    df["ts"] = pd.to_datetime(df["datetime_paris"], utc=True).dt.tz_convert("Europe/Paris").dt.tz_localize(None)
+    df = df[(df["ts"] > fin_a1 - pd.Timedelta(hours=FENETRE_HEURES)) & (df["ts"] <= fin_a1)].dropna(subset=["epex_eur_mwh", "peg_eur_mwh"])
+    heures = [
+        chaleur.couts_horaires(
+            r.ts, r.epex_eur_mwh, r.peg_eur_mwh,
+            0.0 if pd.isna(r.prix_rs_hausse) else r.prix_rs_hausse,
+            0.0 if pd.isna(r.prix_rs_baisse) else r.prix_rs_baisse,
+        )
+        for r in df.itertuples()
+    ]
+    resultat = chaleur.agreger(heures) if len(heures) >= FENETRE_HEURES * SEUIL_MOIS_COMPLET else None
+    _ref_a1_cache.clear()  # une seule fenetre a la fois suffit
+    _ref_a1_cache[fin_a1] = resultat
+    return resultat
+
+
 CHEMIN_INDICE_JSON = os.path.join(os.path.dirname(CHEMIN_CSV_PEG), "indice_now_mensuel_HTB1_LU.json")
 _snapshot_csv: dict | None = None
 
@@ -144,6 +173,7 @@ def snapshot_depuis_csv() -> dict:
         for r in df.itertuples()
     }
     par_jour = pd.Series(list(heures)).dt.date.value_counts()
+    fin_fenetre = list(heures)[-1]
     jour = max(j for j, n in par_jour.items() if n >= 23)  # dernier jour complet (23 h = passage a l'heure d'ete)
     with open(CHEMIN_INDICE_JSON, encoding="utf-8") as f:
         mensuel = sorted(json.load(f), key=lambda l: l["annee_mois"])
@@ -153,6 +183,7 @@ def snapshot_depuis_csv() -> dict:
         "jour": [{"h": t.hour, **v} for t, v in heures.items() if t.date() == jour],
         "maintenant": None,
         "glissant_30j": chaleur.agreger(list(heures.values())[-FENETRE_HEURES:]),
+        "glissant_30j_a1": agregat_meme_periode_a1(fin_fenetre),
         "indice_now_mensuel": mensuel,
         "co2_eur_t": chaleur.CO2_EUR_T,
     }
@@ -177,6 +208,7 @@ def calcule_et_sauvegarde_snapshot() -> dict:
         "jour": jour,
         "maintenant": horaire.get(cle_maintenant),
         "glissant_30j": chaleur.agreger(fenetre),
+        "glissant_30j_a1": agregat_meme_periode_a1(maintenant),
         "indice_now_mensuel": [indice[m] for m in sorted(indice)],
         "co2_eur_t": chaleur.CO2_EUR_T,
     }
