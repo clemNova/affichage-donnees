@@ -12,6 +12,13 @@ dans hist:noos_peg -- inutile d'appeler /api/backfill_peg avant. Un jour sans
 PEG connu (NOOS ne renvoie rien, week-end...) prend la valeur du dernier jour
 connu (chaleur_store.peg_par_jour_depuis_hist).
 
+DECOUPE EN TRANCHES : un seul appel sur tout l'historique risquerait de depasser
+le timeout Vercel Hobby (60 s). Chaque appel traite `jours` jours (12 par
+defaut) a partir de `debut` (par defaut : le lendemain de la fin du CSV
+d'export, borne a HORAIRE_JOURS en arriere) et renvoie `prochain_appel` :
+GET /api/backfill_chaleur?debut=YYYY-MM-DD[&jours=N], a rappeler jusqu'a ce
+qu'il vaille null. Idempotent : refaire une tranche ecrase les memes heures.
+
 L'aFRR capacite (services systeme, RTE) est recuperee dans les memes fenetres.
 Fenetres de 5 jours (troncature silencieuse d'ENTSO-E sur les fenetres larges,
 cf. backfill.py), recuperees en parallele (timeout Vercel Hobby 60s).
@@ -59,12 +66,14 @@ def _fetch_peg(jour: pd.Timestamp) -> tuple[str, float | None, str | None]:
         return jour_iso, None, traceback.format_exc(limit=2)
 
 
-def _backfill_peg(fin: pd.Timestamp) -> dict:
-    """PEG NOOS des jours posterieurs au CSV et absents de hist:noos_peg,
-    jusqu'a hier (aujourd'hui : cron_daily via fetch_peg_spot)."""
+def _backfill_peg(debut: pd.Timestamp, fin: pd.Timestamp) -> dict:
+    """PEG NOOS des jours de [debut, fin[ posterieurs au CSV et absents de
+    hist:noos_peg, hors aujourd'hui (cron_daily via fetch_peg_spot). `debut`
+    et `fin` naifs."""
     deja = kv.get_json("hist:noos_peg", {})
-    premier = pd.Timestamp(chaleur_store.dernier_jour_peg_csv()) + pd.Timedelta(days=1)
-    jours = [j for j in pd.date_range(premier, fin - pd.Timedelta(days=1)) if j.date().isoformat() not in deja]
+    premier = max(debut, pd.Timestamp(chaleur_store.dernier_jour_peg_csv()) + pd.Timedelta(days=1))
+    aujourdhui = pd.Timestamp.now(tz="Europe/Paris").normalize().tz_localize(None)
+    jours = [j for j in pd.date_range(premier, min(fin, aujourdhui) - pd.Timedelta(days=1)) if j.date().isoformat() not in deja]
     with ThreadPoolExecutor(max_workers=8) as executeur:
         resultats = list(executeur.map(_fetch_peg, jours))
     trouves = {j: p for j, p, _ in resultats if p is not None}
@@ -78,10 +87,25 @@ def _backfill_peg(fin: pd.Timestamp) -> dict:
     }
 
 
-def executer() -> dict:
-    fin_globale = pd.Timestamp.now(tz="Europe/Paris").normalize() + pd.Timedelta(days=1)
-    debut_globale = fin_globale - pd.Timedelta(days=chaleur_store.HORAIRE_JOURS)
-    detail_peg = _backfill_peg(pd.Timestamp.now(tz="Europe/Paris").normalize().tz_localize(None))
+JOURS_PAR_APPEL = 12
+
+# app.py passe la query string (dict) aux modules qui declarent ce drapeau.
+ACCEPTE_PARAMS = True
+
+
+def executer(params: dict | None = None) -> dict:
+    params = params or {}
+    demain = pd.Timestamp.now(tz="Europe/Paris").normalize() + pd.Timedelta(days=1)
+    plancher = demain - pd.Timedelta(days=chaleur_store.HORAIRE_JOURS)
+    apres_csv = pd.Timestamp(chaleur_store.dernier_jour_peg_csv(), tz="Europe/Paris") + pd.Timedelta(days=1)
+    if params.get("debut"):
+        debut_globale = pd.Timestamp(params["debut"], tz="Europe/Paris")
+    else:
+        debut_globale = max(apres_csv, plancher)
+    jours = int(params.get("jours") or JOURS_PAR_APPEL)
+    fin_globale = min(debut_globale + pd.Timedelta(days=jours), demain)
+
+    detail_peg = _backfill_peg(debut_globale.tz_localize(None), fin_globale.tz_localize(None))
     fenetres = []
     curseur = debut_globale
     while curseur < fin_globale:
@@ -99,7 +123,12 @@ def executer() -> dict:
     def cumul(cle):
         return [p for r in resultats for p in r.get(cle, [])]
 
+    prochain = None
+    if fin_globale < demain:
+        prochain = f"/api/backfill_chaleur?debut={fin_globale.date().isoformat()}" + (f"&jours={jours}" if params.get("jours") else "")
     return {
+        "tranche": f"{debut_globale.date()}..{fin_globale.date()}",
+        "prochain_appel": prochain,
         "peg": detail_peg,
         "heures_ecrites": chaleur_store.maj_horaire(cumul("points"), cumul("up"), cumul("down")),
         "detail_par_chunk": [

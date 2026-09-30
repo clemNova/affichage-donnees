@@ -192,12 +192,15 @@ Code : `api/_lib/chaleur.py` (calculs purs, paramètres, TURPE),
 
 ```powershell
 curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/importer_indice_now   # historique mensuel
-curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/backfill_chaleur      # PEG NOOS depuis le 28/08 + heures des 45 derniers jours (DA ENTSO-E)
+curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/backfill_chaleur      # tranche de 12 j (PEG NOOS + DA ENTSO-E + aFRR RTE) ; rappeler l'URL "prochain_appel" jusqu'a null
 curl.exe -H "Authorization: Bearer <secret>" https://<url>/api/cron_daily            # snapshot
 curl.exe https://<url>/api/chaleur
 ```
 
-`/api/backfill_chaleur` et `/api/importer_indice_now` sont manuels et protégés
+`/api/backfill_chaleur` traite une tranche de 12 jours par appel (timeout Vercel
+Hobby de 60 s) et renvoie `prochain_appel` (`?debut=YYYY-MM-DD`), à relancer
+jusqu'à `null` (3 appels environ) ; il est idempotent. `/api/backfill_chaleur`
+et `/api/importer_indice_now` sont manuels et protégés
 par `CRON_SECRET`, comme les autres backfills. `backfill_chaleur` n'écrit pas
 `raw:da` (contrairement à `backfill_historique`).
 

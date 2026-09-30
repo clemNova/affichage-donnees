@@ -21,6 +21,7 @@ import os
 import sys
 import traceback
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qsl
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "api"))
 
@@ -56,7 +57,8 @@ MODULES_PROTEGES = {
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        chemin = self.path.split("?", 1)[0].rstrip("/")
+        chemin, _, requete = self.path.partition("?")
+        chemin = chemin.rstrip("/")
 
         if chemin == "/api/kpis":
             try:
@@ -79,7 +81,10 @@ class handler(BaseHTTPRequestHandler):
                 refuser(self)
                 return
             try:
-                repondre(self, 200, MODULES_PROTEGES[chemin].executer())
+                module = MODULES_PROTEGES[chemin]
+                # Certains modules (backfill_chaleur) acceptent des parametres de requete.
+                resultat = module.executer(dict(parse_qsl(requete))) if getattr(module, "ACCEPTE_PARAMS", False) else module.executer()
+                repondre(self, 200, resultat)
             except Exception:
                 repondre(self, 500, {"erreur": traceback.format_exc(limit=2)})
             return
