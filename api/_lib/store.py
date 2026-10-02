@@ -187,22 +187,16 @@ def _maj_kpis_coge(ligne: dict, prefixe: str, serie_jour_elec: pd.Series | None,
     }
     maj_historique_coge(prefixe, jour_iso, valeurs_jour)
 
-    # Un spread (contrairement a un prix) change regulierement de signe --
-    # quand la reference vs 7j est proche de 0, le "%" explose sans rien
-    # signifier (constate : -7951% pour un ecart de quelques €/MWh, cf.
-    # echange utilisateur "bug avec la variation de la base"). Pas de
-    # pourcentage significatif sous ce seuil (€/MWh, pas %).
-    SEUIL_REFERENCE_INSTABLE_COGE = 5.0
-
     hist = kv.get_json(f"hist_coge:{prefixe}", {})
     for cle, valeur in valeurs_jour.items():
         historique_cle = pd.Series({pd.Timestamp(d): v[cle] for d, v in hist.items() if cle in v})
         reference = calc.moyenne_nj_glissante(historique_cle, jour, 7)
         ligne[f"coge_{prefixe}_{cle}"] = valeur
-        if reference is not None and not pd.isna(reference) and abs(reference) < SEUIL_REFERENCE_INSTABLE_COGE:
-            ligne[f"coge_{prefixe}_{cle}_ecart_pct"] = float("nan")
-        else:
-            ligne[f"coge_{prefixe}_{cle}_ecart_pct"] = calc.ecart_pct(valeur, reference)
+        # Un spread peut changer de signe, donc le % vs 7j peut legitimement
+        # etre tres grand quand la reference est proche de 0 -- affiche tel
+        # quel, pas une erreur de calcul (cf. echange utilisateur : a laisser
+        # visible plutot que masque).
+        ligne[f"coge_{prefixe}_{cle}_ecart_pct"] = calc.ecart_pct(valeur, reference)
 
 
 PRUNE_JOURS_SIGNAL_PP = 400  # couvre une saison PP complete (nov-mars) + marge
