@@ -4,5 +4,8 @@
       "maxDuration": 60,
       "includeFiles": "data/**"
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron_daily", "schedule": "0 6 * * *" }
+  ]
 }

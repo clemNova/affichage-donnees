@@ -168,4 +168,18 @@ def executer(jours_avant: int = 1) -> dict:
         chaleur_store.calcule_et_sauvegarde_snapshot()
     except Exception:
         resultats["chaleur"] = f"echec: {traceback.format_exc(limit=2)}"
+
+    # Recalcule aussi kpis:latest ICI, pas seulement dans cron_15min.py --
+    # sinon meme un cron_daily fiable (desormais garanti ~1x/jour via
+    # vercel.json, cf. echange utilisateur) ne suffit pas a rafraichir
+    # l'affichage : les donnees fraiches (PEG, da, etc.) seraient bien en KV
+    # mais /api/kpis resterait bloque sur le dernier snapshot calcule par
+    # cron_15min, dont le declencheur GitHub Actions s'est avere tres peu
+    # fiable (constate : plusieurs heures entre deux executions au lieu de
+    # 15 min).
+    try:
+        resultats["snapshot"] = store.calcule_et_sauvegarde_snapshot()
+    except Exception:
+        resultats["snapshot"] = f"echec: {traceback.format_exc(limit=2)}"
+
     return resultats

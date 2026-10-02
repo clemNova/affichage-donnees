@@ -31,6 +31,24 @@ def executer() -> dict:
     except Exception:
         resultat["activation_top_up"] = f"echec, on continue avec le cache existant: {traceback.format_exc(limit=2)}"
 
+    try:
+        # PEG gaz (NOOS) : tente le fetch a CHAQUE invocation de cron_15min,
+        # pas seulement dans la fenetre 11h-14h30 de cron_daily -- le
+        # declencheur GitHub Actions planifie s'est avere tres peu fiable au
+        # rythme configure (constate : plusieurs heures entre deux executions
+        # au lieu de 15 min), donc cron_daily seul ratait trop souvent sa
+        # fenetre et le Peg restait bloque sur la veille, cf. echange
+        # utilisateur. NOOS n'a pas de quota connu (contrairement aux API
+        # RTE OAuth2), appeler plus souvent est sans risque.
+        spot_peg = fetchers.fetch_peg_spot()
+        if spot_peg:
+            store.maj_prix_journalier("noos_peg", spot_peg[0]["ts"][:10], spot_peg[0]["prix"])
+            resultat["noos_peg"] = 1
+        else:
+            resultat["noos_peg"] = 0
+    except Exception:
+        resultat["noos_peg"] = f"echec: {traceback.format_exc(limit=2)}"
+
     snapshot = store.calcule_et_sauvegarde_snapshot()
     resultat["snapshot"] = snapshot
     try:
